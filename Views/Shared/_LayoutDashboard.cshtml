@@ -1,0 +1,130 @@
+﻿@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/Img/Curso.png">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/Dashboard.css" asp-append-version="true" />
+    <title>@ViewData["Title"] - Campus Virtual GRLL</title>
+</head>
+
+<body class="app sidebar-mini">
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <div class="dashboard-logo">Campus Virtual GRLL</div>
+            <!-- Botón toggle del menú -->
+            <button class="menu-toggle-btn" id="menuToggleBtn" aria-label="Toggle menu">
+                ☰
+            </button>
+        </div>
+
+        <div class="header-right">
+            <!-- Buscador -->
+            <div class="search-box">
+                <input type="text" placeholder="Buscar...">
+                <button>🔍</button>
+            </div>
+
+            <!-- Notificaciones -->
+            <button class="header-icon-btn" aria-label="Notificaciones">
+                🔔
+                <span class="badge">3</span>
+            </button>
+
+            <!-- Perfil de usuario -->
+            <button class="header-icon-btn" aria-label="Perfil de usuario">
+                👤
+            </button>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="user-profile">
+            <div class="user-avatar">
+                <img src="/Img/icono_hombre.png" alt="Avatar" onerror="this.src='https://via.placeholder.com/50'">
+            </div>
+            <div class="user-info">
+                <h3>@(User.Identity?.Name ?? "Usuario")</h3>
+                <p>@(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Administrador")</p>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <ul>
+                <li class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Index" && ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")">
+                    <a href="@Url.Action("Index", "Dashboard")">
+                        <span class="icon">🎨</span>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="@Url.Action("Solicitudes", "Dashboard")">
+                        <span class="icon">📋</span>
+                        <span>Solicitudes</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="@Url.Action("SolicitudesAceptadas", "Dashboard")">
+                        <span class="icon">✅</span>
+                        <span>Solicitudes Aceptadas</span>
+                    </a>
+                </li>
+                <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Administrador" ? "active" : "")">
+                    <a href="@Url.Action("PanelAdministrador", "Administrador")">
+                        <span class="icon">📚</span>
+                        <span>Curso</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="@Url.Action("Profesores", "Dashboard")">
+                        <span class="icon">👨‍🏫</span>
+                        <span>Profesor</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="@Url.Action("Materiales", "Dashboard")">
+                        <span class="icon">📁</span>
+                        <span>Materiales</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="@Url.Action("Evaluaciones", "Dashboard")">
+                        <span class="icon">📝</span>
+                        <span>Evaluaciones</span>
+                    </a>
+                </li>
+                <li>
+                    <form asp-action="Logout" asp-controller="Login" method="post" id="logoutForm" style="margin: 0;">
+                        @Html.AntiForgeryToken()
+                        <a href="#" onclick="event.preventDefault(); if(confirm('¿Está seguro que desea cerrar sesión?')) document.getElementById('logoutForm').submit();" style="display: block; cursor: pointer;">
+                            <span class="icon">🚪</span>
+                            <span>Cerrar Sesión</span>
+                        </a>
+                    </form>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- Overlay para móviles -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Área de contenido principal -->
+    <div class="main-content">
+        @RenderBody()
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/DashboardToggle.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

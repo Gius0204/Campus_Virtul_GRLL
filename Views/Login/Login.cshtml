@@ -1,0 +1,156 @@
+﻿@model Campus_Virtul_GRLL.Models.Usuario
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+
+    <!-- Compatibilidad con navegadores antiguos -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+
+    <!-- Favicon para navegadores -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/Img/Curso.png">
+
+    <!-- Hojas de estilo -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/Usuario.css" asp-append-version="true" />
+    <title>Login</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="title">Bienvenido Campus Virtual GRLL</div>
+        <form id="formulario" asp-action="Login" asp-controller="Login" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="user-details">
+                <div class="input-box">
+                    <span class="details">DNI</span>
+                    <input type="text" id="dni" name="DNI" placeholder="Ingrese su DNI" maxlength="8" />
+                </div>
+                <div class="input-box">
+                    <span class="details">Contraseña</span>
+                    <div class="password-container">
+                        <input type="password" id="contrasena" name="Contrasena" placeholder="Ingrese su contraseña" maxlength="20" />
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Mostrar contraseña">
+                            🙈
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <a href="#" class="forgot-password-link" id="forgotPasswordLink">¿Olvidó su contraseña?</a>
+
+            <div class="button">
+                <input type="submit" value="Iniciar Sesión" />
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal de Recuperación de Contraseña -->
+    <div class="modal-overlay" id="modalRecuperacion">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Recuperación de Contraseña</h3>
+                <button type="button" class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Ingrese su dirección de correo electrónico y le enviaremos un enlace para restablecer su contraseña.</p>
+                <form id="formRecuperacion" asp-action="RecuperacionContrasena" asp-controller="Login" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-input-box">
+                        <label for="correoRecuperacion">Correo Electrónico *</label>
+                        <input type="email" id="correoRecuperacion" name="CorreoElectronico"
+                               placeholder="ejemplo@correo.com" required />
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="button" class="btn-modal btn-secondary" id="cancelarRecuperacion">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn-modal btn-primary" id="btnEnviarRecuperacion">
+                            Restablecer
+                            <span class="loading-spinner" id="loadingSpinner"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="mensaje-overlay"></div>
+        <div class="mensaje-externo mensaje-exito">
+            <strong>✓</strong> @TempData["Mensaje"]
+        </div>
+
+        <script>
+            setTimeout(function() {
+                window.location.href = '@Url.Action("Index", "Login")';
+            }, 3000);
+        </script>
+    }
+
+    @* Mensajes de error *@
+    @if (TempData["Error"] != null)
+    {
+        <div class="mensaje-overlay" id="overlay-error"></div>
+        <div class="mensaje-externo mensaje-error" id="mensaje-error">
+            <strong>✗</strong> @TempData["Error"]
+        </div>
+
+        <script>
+            setTimeout(function() {
+                var mensaje = document.getElementById('mensaje-error');
+                var overlay = document.getElementById('overlay-error');
+                if (mensaje) mensaje.remove();
+                if (overlay) overlay.remove();
+            }, 5000);
+
+            var overlay = document.getElementById('overlay-error');
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    var mensaje = document.getElementById('mensaje-error');
+                    if (mensaje) mensaje.remove();
+                    if (overlay) overlay.remove();
+                });
+            }
+        </script>
+    }
+    <script src="~/js/Validacion_Usuario.js" asp-append-version="true"></script>
+
+    <!-- Scripts para mensajes del modal -->
+    @if (TempData["ErrorModal"] != null)
+    {
+        <script>
+            window.addEventListener('load', function() {
+                // Mostrar el modal con el error
+                var modal = document.getElementById('modalRecuperacion');
+                if (modal) {
+                    modal.classList.add('active');
+                }
+
+                // Mostrar alerta con el mensaje de error
+                setTimeout(function() {
+                    alert('@TempData["ErrorModal"]');
+                }, 300);
+            });
+        </script>
+    }
+
+    @if (TempData["MensajeModal"] != null)
+    {
+        <script>
+            window.addEventListener('load', function() {
+                // Mostrar alerta con el mensaje de éxito
+                alert('@TempData["MensajeModal"]');
+            });
+        </script>
+    }
+</body>
+</html>

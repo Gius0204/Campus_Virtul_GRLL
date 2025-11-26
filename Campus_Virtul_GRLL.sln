@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36603.0 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Campus_Virtul_GRLL", "Campus_Virtul_GRLL.csproj", "{DDCE99C3-4CE0-4D61-82E3-36F242ED3526}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DDCE99C3-4CE0-4D61-82E3-36F242ED3526}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DDCE99C3-4CE0-4D61-82E3-36F242ED3526}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DDCE99C3-4CE0-4D61-82E3-36F242ED3526}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DDCE99C3-4CE0-4D61-82E3-36F242ED3526}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F26FD70D-7D59-4C3D-A696-49F74BE6BEC2}
+	EndGlobalSection
+EndGlobal

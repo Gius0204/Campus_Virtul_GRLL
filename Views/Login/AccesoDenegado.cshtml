@@ -1,0 +1,42 @@
+﻿@model Campus_Virtul_GRLL.Models.Usuario
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/Img/Cursos.png">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/Acceso_Denegado.css" asp-append-version="true" />
+    <title>Acceso Denegado</title>
+</head>
+
+<body>
+    <div class="error-container">
+        <div class="error-icon">🚫</div>
+        <h1>Acceso Denegado</h1>
+        <p>@(ViewBag.Mensaje ?? "No tienes permisos para acceder a esta página.")</p>
+
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <p style="font-size: 14px; color: #95a5a6;">
+                <strong>Usuario:</strong> @User.Identity.Name<br />
+                <strong>Rol:</strong> @User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+            </p>
+            <a href="@Url.Action("Index", "Dashboard")" class="btn-volver">
+                Volver al Dashboard
+            </a>
+        }
+        else
+        {
+            <a href="@Url.Action("Index", "Login")" class="btn-volver">
+                Iniciar Sesión
+            </a>
+        }
+    </div>
+</body>
+</html>

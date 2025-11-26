@@ -1,0 +1,182 @@
+﻿@model Campus_Virtul_GRLL.Models.Usuario
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/Img/Cursos.png">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/RecuperacionContraseña.css" asp-append-version="true" />
+    <title>Restablecer Contraseña</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="title">🔐 Restablecer Contraseña</div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.NombreUsuario))
+        {
+            <p style="text-align: center; margin-bottom: 20px;">
+                <strong>Usuario:</strong> @ViewBag.NombreUsuario
+            </p>
+        }
+
+        <div class="password-requirements">
+            <h4>📋 Requisitos de la contraseña:</h4>
+            <ul>
+                <li>Mínimo 6 caracteres</li>
+                <li>Debe ser diferente a su contraseña anterior</li>
+                <li>No debe contener espacios en blanco</li>
+            </ul>
+        </div>
+
+        <form id="formRestablecerContrasena" asp-action="RestablecerContrasena" asp-controller="Login" method="post">
+            @Html.AntiForgeryToken()
+
+            <input type="hidden" name="Token" value="@ViewBag.Token" />
+
+            <div class="user-details">
+                <!-- Nueva Contraseña -->
+                <div class="input-box">
+                    <span class="details">Nueva Contraseña *</span>
+                    <div class="password-container">
+                        <input type="password"
+                               id="contrasenaNueva"
+                               name="ContrasenaNueva"
+                               placeholder="Mínimo 6 caracteres"
+                               maxlength="20"
+                               required />
+                        <button type="button" class="password-toggle" id="toggleNueva" aria-label="Mostrar contraseña">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Confirmar Nueva Contraseña -->
+                <div class="input-box">
+                    <span class="details">Confirmar Nueva Contraseña *</span>
+                    <div class="password-container">
+                        <input type="password"
+                               id="confirmarContrasena"
+                               name="ConfirmarContrasena"
+                               placeholder="Repita la nueva contraseña"
+                               maxlength="20"
+                               required />
+                        <button type="button" class="password-toggle" id="toggleConfirmar" aria-label="Mostrar contraseña">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button">
+                <input type="submit" value="Restablecer Contraseña" />
+            </div>
+
+            <div style="text-align: center; margin-top: 15px;">
+                <a href="@Url.Action("Index", "Login")" style="color: #666;">
+                    ← Volver al inicio de sesión
+                </a>
+            </div>
+        </form>
+    </div>
+
+    @* Mensajes de éxito *@
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="mensaje-overlay"></div>
+        <div class="mensaje-externo mensaje-exito">
+            <strong>✓</strong> @TempData["Mensaje"]
+        </div>
+
+        <script>
+            setTimeout(function() {
+                var mensaje = document.querySelector('.mensaje-exito');
+                var overlay = document.querySelector('.mensaje-overlay');
+                if (mensaje) mensaje.remove();
+                if (overlay) overlay.remove();
+            }, 3000);
+        </script>
+    }
+
+    @* Mensajes de error *@
+    @if (TempData["Error"] != null)
+    {
+        <div class="mensaje-overlay" id="overlay-error"></div>
+        <div class="mensaje-externo mensaje-error" id="mensaje-error">
+            <strong>✗</strong> @TempData["Error"]
+        </div>
+
+        <script>
+            setTimeout(function() {
+                var mensaje = document.getElementById('mensaje-error');
+                var overlay = document.getElementById('overlay-error');
+                if (mensaje) mensaje.remove();
+                if (overlay) overlay.remove();
+            }, 5000);
+
+            var overlay = document.getElementById('overlay-error');
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    var mensaje = document.getElementById('mensaje-error');
+                    if (mensaje) mensaje.remove();
+                    if (overlay) overlay.remove();
+                });
+            }
+        </script>
+    }
+
+    <script>
+        // ===== TOGGLE PASSWORD VISIBILITY =====
+        const toggleNueva = document.getElementById('toggleNueva');
+        const contrasenaNueva = document.getElementById('contrasenaNueva');
+
+        toggleNueva.addEventListener('click', function() {
+            const type = contrasenaNueva.getAttribute('type') === 'password' ? 'text' : 'password';
+            contrasenaNueva.setAttribute('type', type);
+            this.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
+        const toggleConfirmar = document.getElementById('toggleConfirmar');
+        const confirmarContrasena = document.getElementById('confirmarContrasena');
+
+        toggleConfirmar.addEventListener('click', function() {
+            const type = confirmarContrasena.getAttribute('type') === 'password' ? 'text' : 'password';
+            confirmarContrasena.setAttribute('type', type);
+            this.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+
+        // ===== VALIDACIÓN DEL FORMULARIO =====
+        document.getElementById('formRestablecerContrasena').addEventListener('submit', function(e) {
+            const nueva = contrasenaNueva.value.trim();
+            const confirmar = confirmarContrasena.value.trim();
+
+            if (nueva.length < 6) {
+                e.preventDefault();
+                alert('La contraseña debe tener al menos 6 caracteres.');
+                contrasenaNueva.focus();
+                return false;
+            }
+
+            if (nueva !== confirmar) {
+                e.preventDefault();
+                alert('Las contraseñas no coinciden.');
+                confirmarContrasena.focus();
+                return false;
+            }
+
+            if (nueva.includes(' ') || confirmar.includes(' ')) {
+                e.preventDefault();
+                alert('La contraseña no debe contener espacios en blanco.');
+                return false;
+            }
+            return true;
+        });
+    </script>
+</body>
+</html>

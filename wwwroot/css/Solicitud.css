@@ -1,0 +1,295 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 5px 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: url('/Img/Fondo_2.jpg') no-repeat center center fixed;
+    background-size: cover;
+}
+
+.container {
+    max-width: 700px;
+    width: 100%;
+    background: #fff;
+    padding: 25px 30px;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.container .title {
+    font-size: 25px;
+    font-weight: 500;
+    position: relative;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.container .title::before {
+     content: '';
+     position: absolute;
+     left: 0;
+     bottom: 0;
+     height: 3px;
+     width: 110px;
+     background: #9b59b6;
+}
+
+.container form .user-details {
+     display: flex;
+     flex-wrap: wrap;
+     justify-content: space-between;
+}
+
+form .user-details .input-box {
+    margin-bottom: 15px;
+    width: calc(100% / 2 - 20px);
+}
+
+.user-details .input-box .details {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.user-details .input-box input {
+    height: 45px;
+    width: 100%;
+    outline: none;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    padding-left: 15px;
+    font-size: 16px;
+    border-bottom-width: 2px;
+    transition: all 0.3s ease;
+}
+
+.user-details .input-box input:focus,
+.user-details .input-box input:valid {
+    /*border-color: #28a745;*/
+}
+
+form.gender-details {
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+form .gender-details .gender-title {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+form .gender-details .category {
+     display: flex;
+     flex-wrap: wrap;
+     gap: 15px;
+     width: 100%;
+     margin: 14px 0;
+     justify-content: flex-start;
+}
+
+.gender-details .category label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.gender-details .category .dot {
+    height: 18px;
+    width: 18px;
+    background: #d9d9d9;
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 5px solid transparent;
+    transition: all 0.3s ease;
+}
+
+#dot-1:checked ~ .category label .one,
+#dot-2:checked ~ .category label .two {
+    border-color: #d9d9d9;
+    background: #9b59b6;
+}
+
+form input[type="radio"] {
+    display: none;
+}
+
+form .button {
+    height: 45px;
+    margin-top: 20px;
+}
+
+form .button input {
+     height: 100%;
+     width: 100%;
+     outline: none;
+     color: #fff;
+     border: none;
+     font-size: 18px;
+     font-weight: 500;
+     border-radius: 5px;
+     letter-spacing: 1px;
+     background: linear-gradient(135deg, #71b7e6, #9b59b6);
+     cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+form .button input:hover {
+     background: linear-gradient(-135deg, #71b7e6, #9b59b6);
+     transform: scale(1.02);
+}
+
+/* Mensajes fuera del contenedor */
+.mensaje-externo {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 700px;
+    width: 90%;
+    padding: 20px 30px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.5s ease;
+    z-index: 9999;
+}
+
+.mensaje-exito {
+    background-color: #d4edda;
+    color: #155724;
+    border: 2px solid #c3e6cb;
+}
+
+.mensaje-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 2px solid #f5c6cb;
+}
+
+.mensaje-externo strong {
+    font-size: 20px;
+    margin-right: 8px;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+/* Fondo oscuro detrás del mensaje */
+.mensaje-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 9998;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Estilos para mensajes de validación */
+.aviso {
+    color: #e74c3c;
+    font-size: 13px;
+    display: block;
+    margin-top: 5px;
+    animation: fadeIn 0.3s ease;
+}
+
+/* 🔹 Elimina las flechas en Chrome, Safari, Edge y Opera */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* 🔹 Elimina las flechas en Firefox */
+input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Responsive */
+@media (max-width: 584px) {
+    body {
+        padding: 10px;
+    }
+
+    .container {
+        max-width: 100%;
+        padding: 20px;
+    }
+
+    form .user-details .input-box {
+        margin-bottom: 15px;
+        width: 100%;
+    }
+
+    form .gender-details .category {
+        width: 110%;
+    }
+
+    .mensaje-externo {
+        width: 85%;
+        padding: 15px 20px;
+        font-size: 14px;
+    }
+
+    .mensaje-externo strong {
+        font-size: 18px;
+    }
+
+    .container form .user-details {
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .user-details::-webkit-scrollbar {
+        width: 0;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
+}
+
+.mensaje-overlay {
+    cursor: pointer;
+}

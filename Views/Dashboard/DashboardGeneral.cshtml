@@ -1,0 +1,96 @@
+﻿@model Campus_Virtul_GRLL.Models.Usuario
+@{
+    ViewData["Title"] = "Dashboard General";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+}
+
+<!-- CONTENIDO DEL DASHBOARD GENERAL -->
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="page-title">Dashboard General</h1>
+            <p class="text-muted">Bienvenido al Campus Virtual GRLL</p>
+        </div>
+    </div>
+
+    <!-- Tarjetas de estadísticas -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="content-card text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 150px; display: flex; flex-direction: column; justify-content: center;">
+                <h2 style="font-size: 48px; margin-bottom: 10px;">120</h2>
+                <p style="font-size: 16px; margin: 0;">Total Usuarios</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="content-card text-center" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; min-height: 150px; display: flex; flex-direction: column; justify-content: center;">
+                <h2 style="font-size: 48px; margin-bottom: 10px;">45</h2>
+                <p style="font-size: 16px; margin: 0;">Cursos Disponibles</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="content-card text-center" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; min-height: 150px; display: flex; flex-direction: column; justify-content: center;">
+                <h2 style="font-size: 48px; margin-bottom: 10px;">15</h2>
+                <p style="font-size: 16px; margin: 0;">Solicitudes Pendientes</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="content-card text-center" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; min-height: 150px; display: flex; flex-direction: column; justify-content: center;">
+                <h2 style="font-size: 48px; margin-bottom: 10px;">30</h2>
+                <p style="font-size: 16px; margin: 0;">Profesores Activos</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido adicional -->
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="content-card">
+                <h5 class="mb-3">📊 Actividad Reciente</h5>
+                <hr>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex align-items-center">
+                        <span class="me-2">📚</span> Nuevo curso agregado: "Programación Avanzada"
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                        <span class="me-2">👨‍🎓</span> 5 nuevos estudiantes registrados
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                        <span class="me-2">✅</span> 3 solicitudes aprobadas hoy
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                        <span class="me-2">📝</span> 2 evaluaciones completadas
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                        <span class="me-2">👨‍🏫</span> Nuevo profesor agregado al sistema
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="content-card">
+                <h5 class="mb-3">🚀 Accesos Rápidos</h5>
+                <hr>
+                <div class="d-grid gap-2">
+                    <a href="@Url.Action("PanelAdministrador", "Dashboard")" class="btn btn-primary">
+                        📚 Gestionar Cursos
+                    </a>
+                    <a href="#" class="btn btn-secondary">
+                        📋 Ver Solicitudes
+                    </a>
+                    <a href="#" class="btn btn-info text-white">
+                        📊 Reportes
+                    </a>
+                    <a href="#" class="btn btn-success">
+                        ⚙️ Configuración
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        console.log('Dashboard General cargado correctamente');
+    </script>
+}
