@@ -26,11 +26,6 @@
         </div>
 
         <div class="header-right">
-            <!-- Buscador -->
-            <div class="search-box">
-                <input type="text" placeholder="Buscar...">
-                <button>🔍</button>
-            </div>
 
             <!-- Notificaciones -->
             <button class="header-icon-btn" aria-label="Notificaciones">
@@ -58,6 +53,7 @@
         </div>
 
         <nav class="sidebar-menu">
+            @{ var rol = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Practicante"; }
             <ul>
                 <li class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Index" && ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")">
                     <a href="@Url.Action("Index", "Dashboard")">
@@ -65,50 +61,57 @@
                         <span>Dashboard</span>
                     </a>
                 </li>
-                <li>
-                    <a href="@Url.Action("Solicitudes", "Dashboard")">
-                        <span class="icon">📋</span>
-                        <span>Solicitudes</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="@Url.Action("SolicitudesAceptadas", "Dashboard")">
-                        <span class="icon">✅</span>
-                        <span>Solicitudes Aceptadas</span>
-                    </a>
-                </li>
-                <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Administrador" ? "active" : "")">
-                    <a href="@Url.Action("PanelAdministrador", "Administrador")">
-                        <span class="icon">📚</span>
-                        <span>Curso</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="@Url.Action("Profesores", "Dashboard")">
-                        <span class="icon">👨‍🏫</span>
-                        <span>Profesor</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="@Url.Action("Materiales", "Dashboard")">
-                        <span class="icon">📁</span>
-                        <span>Materiales</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="@Url.Action("Evaluaciones", "Dashboard")">
-                        <span class="icon">📝</span>
-                        <span>Evaluaciones</span>
-                    </a>
-                </li>
-                <li>
-                    <form asp-action="Logout" asp-controller="Login" method="post" id="logoutForm" style="margin: 0;">
-                        @Html.AntiForgeryToken()
-                        <a href="#" onclick="event.preventDefault(); if(confirm('¿Está seguro que desea cerrar sesión?')) document.getElementById('logoutForm').submit();" style="display: block; cursor: pointer;">
-                            <span class="icon">🚪</span>
-                            <span>Cerrar Sesión</span>
+                @* Catálogo visible para Practicante y Profesor *@
+                @if (rol == "Practicante" || rol == "Profesor" || rol == "Administrador") {
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+                        <a href="@Url.Action("Index", "Cursos")">
+                            <span class="icon">📚</span>
+                            <span>Catálogo Cursos</span>
                         </a>
-                    </form>
+                    </li>
+                }
+                @* Mis Cursos visible para todos *@
+                <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
+                    <a href="@Url.Action("MisCursos", "Cursos")">
+                        <span class="icon">🎓</span>
+                        <span>Mis Cursos</span>
+                    </a>
+                </li>
+                @* Panel de Solicitudes solo Administrador *@
+                @if (rol == "Administrador") {
+                    <li class="@(ViewContext.RouteData.Values["action"]?.ToString() == "PanelSolicitudes" && ViewContext.RouteData.Values["controller"]?.ToString() == "Administrador" ? "active" : "")">
+                        <a href="@Url.Action("PanelSolicitudes", "Administrador")">
+                            <span class="icon">📋</span>
+                            <span>Solicitudes</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="@Url.Action("PanelAdministrador", "Administrador")">
+                            <span class="icon">📚</span>
+                            <span>Admin Cursos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="@Url.Action("Index", "Usuarios")">
+                            <span class="icon">👤</span>
+                            <span>Usuarios</span>
+                        </a>
+                    </li>
+                }
+                @* Inscripciones pendientes solo Profesor *@
+                @if (rol == "Profesor") {
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Inscripciones" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+                        <a href="@Url.Action("Index", "Inscripciones")">
+                            <span class="icon">🧾</span>
+                            <span>Inscripciones Pendientes</span>
+                        </a>
+                    </li>
+                }
+                <li>
+                    <a href="#" onclick="event.preventDefault(); abrirModalLogout();" style="display: block; cursor: pointer;">
+                        <span class="icon">🚪</span>
+                        <span>Cerrar Sesión</span>
+                    </a>
                 </li>
             </ul>
         </nav>
@@ -125,6 +128,35 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/DashboardToggle.js"></script>
-    @await RenderSectionAsync("Scripts", required: false)
+        <!-- Modal Logout -->
+        <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cerrar sesión</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>¿Desea cerrar sesión como <strong>@rol</strong>?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <form asp-action="Logout" asp-controller="Login" method="post" id="logoutForm" style="margin: 0;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-primary">Sí, salir</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function abrirModalLogout(){
+                var modal = new bootstrap.Modal(document.getElementById('logoutModal'));
+                modal.show();
+            }
+        </script>
+
+        @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -1,0 +1,22 @@
+@{
+    ViewData["Title"] = "Entregar Tarea";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var tarea = ViewBag.Tarea as Campus_Virtul_GRLL.Models.Tarea;
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-2">Entregar Tarea</h1>
+    <p class="text-muted">Fecha límite: @tarea?.FechaLimite.ToString("dd/MM/yyyy HH:mm") (@tarea?.Estado)</p>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+    <div class="content-card">
+        <form method="post" asp-action="Entregar" asp-controller="Tareas">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="idTarea" value="@tarea?.IdTarea" />
+            <div class="mb-2">
+                <label class="form-label">Nombre archivo (simulado)</label>
+                <input name="nombreArchivo" class="form-control" />
+            </div>
+            <button class="btn btn-primary">Registrar Entrega</button>
+        </form>
+    </div>
+</div>

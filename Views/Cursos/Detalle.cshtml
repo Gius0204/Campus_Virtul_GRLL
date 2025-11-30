@@ -1,0 +1,134 @@
+@model Campus_Virtul_GRLL.Models.Curso
+@using Campus_Virtul_GRLL.Models
+@{
+    ViewData["Title"] = "Detalle Curso";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var sesiones = ViewBag.Sesiones as List<Sesion> ?? new();
+    var subSecciones = ViewBag.SubSecciones as List<SubSeccion> ?? new();
+    bool puedeEditar = (bool)(ViewBag.PuedeEditar ?? false);
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-2">@Model.Titulo</h1>
+    <p class="text-muted">@Model.Descripcion</p>
+    <p><strong>Estado:</strong> @Model.Estado</p>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+
+    <div class="mb-3">
+        @if (User.IsInRole("Practicante"))
+        {
+            <form method="post" asp-action="SolicitarInscripcion" asp-controller="Cursos">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@Model.IdCurso" />
+                <button class="btn btn-primary">Solicitar Inscripción</button>
+            </form>
+        }
+        @if (puedeEditar && Model.Estado == EstadoCurso.Borrador)
+        {
+            <form method="post" asp-action="Publicar" asp-controller="Cursos" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@Model.IdCurso" />
+                <button class="btn btn-success">Publicar Curso</button>
+            </form>
+        }
+    </div>
+
+    @if (puedeEditar)
+    {
+        <div class="content-card mb-4">
+            <h5>Nueva Sesión</h5>
+            <form method="post" asp-action="Crear" asp-controller="Sesiones">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@Model.IdCurso" />
+                <div class="mb-2"><input name="titulo" class="form-control" placeholder="Título" /></div>
+                <div class="mb-2"><textarea name="descripcion" class="form-control" placeholder="Descripción"></textarea></div>
+                <button class="btn btn-secondary btn-sm">Agregar Sesión</button>
+            </form>
+        </div>
+    }
+
+    <div class="accordion" id="sesionesAccordion">
+        @foreach (var s in sesiones)
+        {
+            <div class="content-card mb-3">
+                <h5>Sesión @s.Orden: @s.Titulo</h5>
+                <p class="text-muted">@s.Descripcion</p>
+                @if (puedeEditar)
+                {
+                    <div class="mb-2">
+                        <form method="post" id="formSubseccion_@s.IdSesion" class="mb-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idSesion" value="@s.IdSesion" />
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <select class="form-select" id="tipoSub_@s.IdSesion">
+                                        <option value="contenido">Agregar Contenido</option>
+                                        <option value="video">Agregar Video</option>
+                                        <option value="tarea">Agregar Tarea</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <input name="titulo" class="form-control mb-2" placeholder="Título" />
+                                </div>
+                            </div>
+                            <div id="panelContenido_@s.IdSesion" class="mt-2">
+                                <textarea name="texto" class="form-control" placeholder="Texto del contenido"></textarea>
+                            </div>
+                            <div id="panelVideo_@s.IdSesion" class="mt-2" style="display:none;">
+                                <input name="rutaVideo" class="form-control" placeholder="Ruta/Nombre del video" />
+                            </div>
+                            <div id="panelTarea_@s.IdSesion" class="mt-2" style="display:none;">
+                                <input name="fechaLimite" type="datetime-local" class="form-control" />
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="enviarSubseccion(@s.IdSesion)">Agregar</button>
+                            </div>
+                        </form>
+                    </div>
+                }
+                <ul class="list-group">
+                    @foreach (var sub in subSecciones.Where(x => x.IdSesion == s.IdSesion))
+                    {
+                        <li class="list-group-item">
+                            <strong>@sub.Tipo:</strong> @sub.Titulo
+                            @if (sub.Tipo == TipoSubSeccion.Contenido)
+                            {<div class="small mt-1">@sub.Texto</div>}
+                            @if (sub.Tipo == TipoSubSeccion.Video)
+                            {<div class="small mt-1">Video: @sub.RutaVideo</div>}
+                            @if (sub.Tipo == TipoSubSeccion.Tarea)
+                            {<div class="small mt-1">Tarea con fecha límite gestionada.</div>}
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+<script>
+    function enviarSubseccion(idSesion) {
+        const tipo = document.getElementById(`tipoSub_${idSesion}`).value;
+        const form = document.getElementById(`formSubseccion_${idSesion}`);
+        if (tipo === 'contenido') {
+            form.setAttribute('action', '@Url.Action("CrearContenido", "Sesiones")');
+        } else if (tipo === 'video') {
+            form.setAttribute('action', '@Url.Action("CrearVideo", "Sesiones")');
+        } else {
+            form.setAttribute('action', '@Url.Action("CrearTarea", "Sesiones")');
+        }
+        form.setAttribute('method', 'post');
+        form.submit();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const selects = document.querySelectorAll('[id^="tipoSub_"]');
+        selects.forEach(sel => {
+            sel.addEventListener('change', (e) => {
+                const id = e.target.id.split('_')[1];
+                const val = e.target.value;
+                document.getElementById(`panelContenido_${id}`).style.display = (val === 'contenido') ? '' : 'none';
+                document.getElementById(`panelVideo_${id}`).style.display = (val === 'video') ? '' : 'none';
+                document.getElementById(`panelTarea_${id}`).style.display = (val === 'tarea') ? '' : 'none';
+            });
+        });
+    });
+</script>

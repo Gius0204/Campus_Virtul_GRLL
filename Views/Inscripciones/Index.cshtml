@@ -1,0 +1,34 @@
+@using Campus_Virtul_GRLL.Models
+@{
+    ViewData["Title"] = "Inscripciones - Cursos";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var resumen = ViewBag.Resumen as System.Collections.IEnumerable;
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-3">Inscripciones Pendientes</h1>
+    <p class="text-muted">Seleccione un curso para revisar las solicitudes.</p>
+
+    <div class="row">
+        @if (resumen == null)
+        {
+            <div class="alert alert-info">No tiene cursos asignados.</div>
+        }
+        else
+        {
+            foreach (var item in resumen)
+            {
+                dynamic x = item;
+                <div class="col-md-6">
+                    <div class="content-card mb-3">
+                        <h5>@x.Curso.Titulo</h5>
+                        <p class="small text-muted">@x.Curso.Descripcion</p>
+                        <span class="badge bg-warning text-dark">Pendientes: @x.Pendientes</span>
+                        <div class="mt-2">
+                            <a class="btn btn-primary btn-sm" href="@Url.Action("Pendientes", "Inscripciones", new { idCurso = x.Curso.IdCurso })">Revisar</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>

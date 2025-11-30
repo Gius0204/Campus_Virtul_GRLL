@@ -1,0 +1,48 @@
+@model IEnumerable<Campus_Virtul_GRLL.Models.Inscripcion>
+@using Campus_Virtul_GRLL.Models
+@{
+    ViewData["Title"] = "Inscripciones Pendientes";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var curso = ViewBag.Curso as Curso;
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-2">Inscripciones Pendientes - @curso?.Titulo</h1>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">No hay solicitudes pendientes.</div>
+    }
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Usuario</th>
+                <th>Fecha Solicitud</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ins in Model)
+            {
+                var usuario = ins.IdUsuario;
+                <tr>
+                    <td>@ins.IdInscripcion</td>
+                    <td>@usuario</td>
+                    <td>@ins.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>
+                        <form method="post" asp-action="Aprobar" asp-controller="Inscripciones" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idInscripcion" value="@ins.IdInscripcion" />
+                            <button class="btn btn-sm btn-success">Aprobar</button>
+                        </form>
+                        <form method="post" asp-action="Rechazar" asp-controller="Inscripciones" class="d-inline ms-1">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idInscripcion" value="@ins.IdInscripcion" />
+                            <button class="btn btn-sm btn-danger">Rechazar</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

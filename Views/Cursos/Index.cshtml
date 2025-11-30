@@ -1,0 +1,23 @@
+@model IEnumerable<Campus_Virtul_GRLL.Models.Curso>
+@{
+    ViewData["Title"] = "Catálogo de Cursos";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var rol = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-3">Catálogo de Cursos</h1>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    <div class="row">
+        @foreach (var c in Model)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="content-card h-100">
+                    <h5>@c.Titulo</h5>
+                    <p class="text-muted">@c.Descripcion</p>
+                    <p><strong>Estado:</strong> @c.Estado</p>
+                    <a class="btn btn-sm btn-primary" href="@Url.Action("Detalle","Cursos", new { id = c.IdCurso })">Ver Detalle</a>
+                </div>
+            </div>
+        }
+    </div>
+</div>

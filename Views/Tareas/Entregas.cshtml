@@ -1,0 +1,50 @@
+@model IEnumerable<Campus_Virtul_GRLL.Models.EntregaTarea>
+@{
+    ViewData["Title"] = "Entregas de Tarea";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var tarea = ViewBag.Tarea as Campus_Virtul_GRLL.Models.Tarea;
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-2">Entregas de Tarea @tarea?.IdTarea</h1>
+    <p class="text-muted">Fecha límite: @tarea?.FechaLimite.ToString("dd/MM/yyyy HH:mm") (@tarea?.Estado)</p>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+    @if (!Model.Any()) { <div class="alert alert-info">No hay entregas todavía.</div> }
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Usuario</th>
+                <th>Archivo</th>
+                <th>Fecha</th>
+                <th>Nota</th>
+                <th>Estado</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in Model)
+            {
+                <tr>
+                    <td>@e.IdEntregaTarea</td>
+                    <td>@e.IdUsuario</td>
+                    <td>@e.RutaArchivo</td>
+                    <td>@e.FechaEntrega.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@(e.Nota?.ToString() ?? "-")</td>
+                    <td>@e.Estado</td>
+                    <td>
+                        @if (e.Estado != Campus_Virtul_GRLL.Models.EstadoEntrega.Calificada)
+                        {
+                            <form method="post" asp-action="Calificar" asp-controller="Tareas" class="d-flex" style="gap:4px;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idEntrega" value="@e.IdEntregaTarea" />
+                                <input type="number" name="nota" min="0" max="20" class="form-control form-control-sm" style="width:80px" />
+                                <button class="btn btn-sm btn-success">Ok</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

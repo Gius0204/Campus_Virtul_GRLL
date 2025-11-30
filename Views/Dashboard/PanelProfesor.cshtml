@@ -1,5 +1,39 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
-@{
+﻿@{
+    ViewData["Title"] = "Panel Profesor";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
 }
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="page-title">Panel del Profesor</h1>
+            <p class="text-muted">Gestione sus cursos y contenido.</p>
+            @if (TempData["Mensaje"] != null)
+            {
+                <div class="alert alert-success">@TempData["Mensaje"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+        </div>
+    </div>
+
+    <div class="content-card mb-4">
+        <h5>Acciones rápidas</h5>
+        <hr />
+        <a class="btn btn-primary me-2" href="@Url.Action("Index", "Cursos")">📚 Ver Catálogo</a>
+        <a class="btn btn-secondary me-2" href="@Url.Action("MisCursos", "Cursos")">🎓 Mis Cursos</a>
+    </div>
+
+    <div class="content-card">
+        <h5>Resumen</h5>
+        <hr />
+        <p>Use la sección "Mis Cursos" para agregar sesiones y subsecciones.</p>
+        <ul>
+            <li>Crear Sesiones: formulario en Detalle del Curso.</li>
+            <li>Agregar Contenido / Video / Tarea: botones por sesión.</li>
+            <li>Publicar curso una vez tenga contenido mínimo.</li>
+        </ul>
+    </div>
+</div>

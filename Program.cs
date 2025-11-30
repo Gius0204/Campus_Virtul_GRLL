@@ -1,30 +1,26 @@
-using Campus_Virtul_GRLL.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.EntityFrameworkCore;
+using Campus_Virtul_GRLL.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================
-// 1. CONFIGURAR BASE DE DATOS
+// 1. REGISTRAR ALMACÃ‰N EN MEMORIA (Sin BD)
 // ============================================
-builder.Services.AddDbContext<AppDBContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("ConexionSQL"));
-});
+builder.Services.AddSingleton<InMemoryDataStore>();
 
 // ============================================
-// 2. CONFIGURAR AUTENTICACIÓN CON COOKIES
+// 2. CONFIGURAR AUTENTICACIï¿½N CON COOKIES
 // ============================================
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath = "/Login/Index"; // Página de login
-        options.LogoutPath = "/Login/Logout"; // Cerrar sesión
+        options.LoginPath = "/Login/Index"; // Pï¿½gina de login
+        options.LogoutPath = "/Login/Logout"; // Cerrar sesiï¿½n
         options.AccessDeniedPath = "/Login/AccesoDenegado"; // Sin permisos
-        options.ExpireTimeSpan = TimeSpan.FromSeconds(1); // Cookie válida por 8 horas
-        options.SlidingExpiration = true; // Renovar automáticamente
+        options.ExpireTimeSpan = TimeSpan.FromHours(8); // Cookie vÃ¡lida por 8 horas
+        options.SlidingExpiration = true; // Renovar automï¿½ticamente
         options.Cookie.Name = "CampusVirtualAuth";
-        options.Cookie.HttpOnly = true; // Protección contra XSS
+        options.Cookie.HttpOnly = true; // Protecciï¿½n contra XSS
         options.Cookie.IsEssential = true; // Cookie esencial
     });
 
@@ -57,6 +53,6 @@ app.UseAuthorization();
 // ============================================
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Solicitud}/{action=Solicitud}/{id?}");
+    pattern: "{controller=Login}/{action=Index}/{id?}");
 
 app.Run();

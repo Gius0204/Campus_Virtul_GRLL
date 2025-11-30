@@ -1,0 +1,205 @@
+﻿@model IEnumerable<Campus_Virtul_GRLL.Models.Solicitud>
+
+@{
+    ViewData["Title"] = "Solicitudes";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+}
+
+<link rel="stylesheet" href="~/css/PanelSolicitudes.css" asp-append-version="true" />
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="page-title">Solicitudes</h1>
+            <p class="text-muted">Gestión de solicitudes de usuarios</p>
+        </div>
+    </div>
+
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Mensaje"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-12">
+            <div class="content-card">
+                <!-- Barra de búsqueda y filtros -->
+                <div class="table-controls mb-3">
+                    <div class="datatable-filter">
+                        <label>
+                            Mostrar
+                            <select class="form-select form-select-sm" id="recordsPerPage">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            registros
+                        </label>
+                    </div>
+                    <div class="datatable-search">
+                        <label>
+                            Buscar:
+                            <input type="search" class="form-control form-control-sm" id="searchInput" placeholder="Buscar...">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Tabla -->
+                <div class="table-responsive">
+                    <table class="table table-hover" id="solicitudesTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombres</th>
+                                <th>Apellidos</th>
+                                <th>DNI</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <th>Área</th>
+                                <th>Rol</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model != null && Model.Any())
+                            {
+                                @foreach (var solicitud in Model)
+                                {
+                                    <tr data-id="@solicitud.IdSolicitud">
+                                        <td>@solicitud.IdSolicitud</td>
+                                        <td>@solicitud.Nombres</td>
+                                        <td>@solicitud.Apellidos</td>
+                                        <td>@solicitud.DNI</td>
+                                        <td>@solicitud.Telefono</td>
+                                        <td>@solicitud.CorreoElectronico</td>
+                                        <td>@solicitud.Area</td>
+                                        <td>@(solicitud.NombreRol ?? "N/A")</td>
+                                        <td>@solicitud.FechaSolicitud.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            @switch (solicitud.Estado)
+                                            {
+                                                case Campus_Virtul_GRLL.Models.EstadoSolicitud.Enviada:
+                                                    <span class="badge bg-info">Enviada</span>
+                                                    break;
+                                                case Campus_Virtul_GRLL.Models.EstadoSolicitud.EnRevision:
+                                                    <span class="badge bg-warning">En Revisión</span>
+                                                    break;
+                                                case Campus_Virtul_GRLL.Models.EstadoSolicitud.Aprobada:
+                                                    <span class="badge bg-success">Aprobada</span>
+                                                    break;
+                                                case Campus_Virtul_GRLL.Models.EstadoSolicitud.Rechazada:
+                                                    <span class="badge bg-danger">Rechazada</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group-actions">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-info btn-ver"
+                                                        data-id="@solicitud.IdSolicitud"
+                                                        title="Ver detalles">
+                                                    👁️
+                                                </button>
+                                                @if (solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.Enviada ||
+                                                                                        solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.EnRevision)
+                                                {
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-success btn-aprobar"
+                                                            data-id="@solicitud.IdSolicitud"
+                                                            title="Aprobar">
+                                                        ✅
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-warning btn-rechazar"
+                                                            data-id="@solicitud.IdSolicitud"
+                                                            title="Rechazar">
+                                                        ❌
+                                                    </button>
+                                                }
+                                                <button type="button"
+                                                        class="btn btn-sm btn-danger btn-eliminar"
+                                                        data-id="@solicitud.IdSolicitud"
+                                                        title="Eliminar">
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="11" class="text-center py-4">
+                                        <p class="text-muted mb-0">No hay solicitudes registradas</p>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                <div class="table-footer mt-3">
+                    <div class="datatable-info">
+                        <span id="tableInfo">Mostrando registros del 1 al @(Model?.Count() ?? 0) de un total de @(Model?.Count() ?? 0) registros</span>
+                    </div>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="pagination">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1">Anterior</a>
+                            </li>
+                            <li class="page-item active">
+                                <a class="page-link" href="#">1</a>
+                            </li>
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#">Siguiente</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para ver detalles -->
+<div class="modal fade" id="modalVerSolicitud" tabindex="-1" aria-labelledby="modalVerSolicitudLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalVerSolicitudLabel">Detalles de la Solicitud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @Html.AntiForgeryToken()
+    <script src="~/js/Validacion_solicitudes.js" asp-append-version="true"></script>
+}

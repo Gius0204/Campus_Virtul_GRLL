@@ -1,22 +1,21 @@
-﻿using Campus_Virtul_GRLL.Data;
+﻿using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
     public class LoginController : Controller
     {
-        private readonly AppDBContext _appContext;
+        private readonly InMemoryDataStore _store;
         private readonly ILogger<LoginController> _logger;
 
-        public LoginController(AppDBContext appContext, ILogger<LoginController> logger)
+        public LoginController(InMemoryDataStore store, ILogger<LoginController> logger)
         {
-            _appContext = appContext;
+            _store = store;
             _logger = logger;
         }
 
@@ -58,9 +57,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 // 2. BUSCAR USUARIO EN LA BASE DE DATOS
                 // ============================================
-                var usuario = await _appContext.Usuarios
-                    .Include(u => u.Rol)
-                    .FirstOrDefaultAsync(u => u.DNI == DNI);
+                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.DNI == DNI);
 
                 // Validar que el usuario existe
                 if (usuario == null)
@@ -168,13 +165,6 @@ namespace Campus_Virtul_GRLL.Controllers
                 _logger.LogInformation($"Redirigiendo al Dashboard - Usuario ID: {usuario.IdUsuario}");
                 return RedirectToAction("Index", "Dashboard");
             }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "❌ Error de base de datos durante el login");
-                var errorMessage = ex.InnerException?.Message ?? ex.Message;
-                TempData["Error"] = $"Error de base de datos: {errorMessage}";
-                return View("Login");
-            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Error crítico durante el proceso de login");
@@ -214,8 +204,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 // 2. BUSCAR USUARIO POR CORREO
                 // ============================================
-                var usuario = await _appContext.Usuarios
-                    .FirstOrDefaultAsync(u => u.CorreoElectronico.ToLower() == CorreoElectronico);
+                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.CorreoElectronico.ToLower() == CorreoElectronico);
 
                 // Si el correo NO existe en la base de datos
                 if (usuario == null)
@@ -243,8 +232,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 usuario.FechaExpiracionToken = fechaExpiracion;
                 usuario.FechaActualizacion = DateOnly.FromDateTime(DateTime.Now);
 
-                _appContext.Usuarios.Update(usuario);
-                await _appContext.SaveChangesAsync();
+                // Persistencia en memoria (ya almacenado en _store)
 
                 // ============================================
                 // 4. ENVIAR CORREO DE RECUPERACIÓN
@@ -263,12 +251,6 @@ namespace Campus_Virtul_GRLL.Controllers
                 // Por ahora solo mostramos el mensaje de éxito
 
                 TempData["MensajeModal"] = "Se ha enviado un correo electrónico con las instrucciones para el cambio de tu contraseña. Por favor verifica la información enviada.";
-                return View("Login");
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "❌ Error de base de datos en recuperación de contraseña");
-                TempData["ErrorModal"] = "Error al procesar la solicitud. Intente nuevamente.";
                 return View("Login");
             }
             catch (Exception ex)
@@ -291,9 +273,7 @@ namespace Campus_Virtul_GRLL.Controllers
             try
             {
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-                var usuario = await _appContext.Usuarios
-                    .Include(u => u.Rol)
-                    .FirstOrDefaultAsync(u => u.IdUsuario == userId);
+                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.IdUsuario == userId);
 
                 if (usuario == null)
                 {
@@ -362,8 +342,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 usuario.PrimerInicio = false;
                 usuario.FechaActualizacion = DateOnly.FromDateTime(DateTime.Now);
 
-                _appContext.Usuarios.Update(usuario);
-                await _appContext.SaveChangesAsync();
+                // Persistencia en memoria
 
                 _logger.LogInformation($"✅ Contraseña actualizada exitosamente - Usuario ID: {userId}");
 
@@ -408,13 +387,6 @@ namespace Campus_Virtul_GRLL.Controllers
 
                 TempData["Mensaje"] = "Contraseña actualizada exitosamente.";
                 return RedirectToAction("Index", "Login");
-            }
-            catch (DbUpdateException ex)
-            {
-                _logger.LogError(ex, "❌ Error de base de datos al cambiar contraseña");
-                var errorMessage = ex.InnerException?.Message ?? ex.Message;
-                TempData["Error"] = $"Error al guardar en la base de datos: {errorMessage}";
-                return View("CambiarContrasena");
             }
             catch (Exception ex)
             {

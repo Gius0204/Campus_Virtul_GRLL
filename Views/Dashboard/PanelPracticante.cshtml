@@ -1,5 +1,38 @@
-﻿@*
-    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
-*@
-@{
+﻿@{
+    ViewData["Title"] = "Panel Practicante";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
 }
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="page-title">Panel del Practicante</h1>
+            <p class="text-muted">Explora cursos y solicita inscripción.</p>
+            @if (TempData["Mensaje"] != null)
+            {
+                <div class="alert alert-success">@TempData["Mensaje"]</div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger">@TempData["Error"]</div>
+            }
+        </div>
+    </div>
+
+    <div class="content-card mb-4">
+        <h5>Acciones</h5>
+        <hr />
+        <a class="btn btn-primary me-2" href="@Url.Action("Index", "Cursos")">📚 Ver Catálogo</a>
+        <a class="btn btn-secondary me-2" href="@Url.Action("MisCursos", "Cursos")">🎓 Mis Cursos</a>
+    </div>
+
+    <div class="content-card">
+        <h5>Indicaciones</h5>
+        <hr />
+        <ul>
+            <li>Solicita inscripción desde el Detalle del curso.</li>
+            <li>Una vez aprobado accederás al contenido interno.</li>
+            <li>Las tareas pueden subirse antes de la fecha límite.</li>
+        </ul>
+    </div>
+</div>

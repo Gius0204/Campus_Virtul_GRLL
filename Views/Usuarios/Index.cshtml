@@ -1,0 +1,73 @@
+@model List<Campus_Virtul_GRLL.Models.Usuario>
+@{
+    ViewData["Title"] = "Usuarios";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-3">Usuarios</h1>
+    <p class="text-muted">Listado de usuarios registrados en el sistema.</p>
+
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+
+    <div class="content-card">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Apellidos</th>
+                        <th>Nombres</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Cambiar Rol</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var u in Model)
+                {
+                    <tr>
+                        <td>@u.DNI</td>
+                        <td>@u.Apellidos</td>
+                        <td>@u.Nombres</td>
+                        <td>@u.CorreoElectronico</td>
+                        <td>@(u.Rol != null ? u.Rol.NombreRol : "-")</td>
+                        <td>
+                            <form asp-action="CambiarRol" asp-controller="Usuarios" method="post" class="d-flex align-items-center gap-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idUsuario" value="@u.IdUsuario" />
+                                <select name="idRol" class="form-select form-select-sm" style="min-width: 160px;">
+                                    @foreach (var rol in (IEnumerable<Campus_Virtul_GRLL.Models.Rol>)ViewBag.Roles)
+                                    {
+                                        if (u.IdRol == rol.IdRol)
+                                        {
+                                            <option value="@rol.IdRol" selected>@rol.NombreRol</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@rol.IdRol">@rol.NombreRol</option>
+                                        }
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            </form>
+                        </td>
+                        <td>
+                            @(u.Estado ? "Activo" : "Inactivo")
+                        </td>
+                        <td>
+                            <form asp-action="ToggleEstado" asp-controller="Usuarios" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idUsuario" value="@u.IdUsuario" />
+                                <button type="submit" class="btn btn-outline-secondary btn-sm">@(u.Estado ? "Desactivar" : "Activar")</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

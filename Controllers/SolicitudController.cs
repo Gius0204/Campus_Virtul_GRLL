@@ -1,17 +1,16 @@
-﻿using Campus_Virtul_GRLL.Data;
+﻿using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
     public class SolicitudController : Controller
     {
-        private readonly AppDBContext _appContext;
+        private readonly InMemoryDataStore _store;
 
-        public SolicitudController(AppDBContext appContext)
+        public SolicitudController(InMemoryDataStore store)
         {
-            _appContext = appContext;
+            _store = store;
         }
 
         [HttpGet]
@@ -47,8 +46,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // Verificar que el rol existe en la base de datos
-                var rolExiste = await _appContext.Rols.AnyAsync(r => r.IdRol == modelo.IdRol);
-                if (!rolExiste)
+                if (!_store.Roles.ContainsKey(modelo.IdRol))
                 {
                     TempData["Error"] = "El Tipo de usuario seleccionado no existe.";
                     return View(modelo);
@@ -58,7 +56,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 var camposDuplicados = new List<string>();
 
                 // Verificar Nombres + Apellidos
-                if (await _appContext.Solicituds.AnyAsync(s =>
+                if (_store.Solicitudes.Values.Any(s =>
                     s.Nombres.ToLower() == modelo.Nombres.Trim().ToLower() &&
                     s.Apellidos.ToLower() == modelo.Apellidos.Trim().ToLower()))
                 {
@@ -66,19 +64,19 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // Verificar DNI
-                if (await _appContext.Solicituds.AnyAsync(s => s.DNI == modelo.DNI.Trim()))
+                if (_store.Solicitudes.Values.Any(s => s.DNI == modelo.DNI.Trim()))
                 {
                     camposDuplicados.Add($"DNI ({modelo.DNI})");
                 }
 
                 // Verificar Teléfono
-                if (await _appContext.Solicituds.AnyAsync(s => s.Telefono == modelo.Telefono.Trim()))
+                if (_store.Solicitudes.Values.Any(s => s.Telefono == modelo.Telefono.Trim()))
                 {
                     camposDuplicados.Add($"Teléfono ({modelo.Telefono})");
                 }
 
                 // Verificar Correo
-                if (await _appContext.Solicituds.AnyAsync(s => s.CorreoElectronico == modelo.CorreoElectronico.Trim()))
+                if (_store.Solicitudes.Values.Any(s => s.CorreoElectronico == modelo.CorreoElectronico.Trim()))
                 {
                     camposDuplicados.Add($"Correo electrónico ({modelo.CorreoElectronico})");
                 }
@@ -92,31 +90,10 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // Crear y guardar la solicitud
-                var solicitud = new Solicitud
-                {
-                    IdRol = modelo.IdRol,
-                    Nombres = modelo.Nombres.Trim(),
-                    Apellidos = modelo.Apellidos.Trim(),
-                    DNI = modelo.DNI.Trim(),
-                    Telefono = modelo.Telefono.Trim(),
-                    CorreoElectronico = modelo.CorreoElectronico.Trim(),
-                    Area = modelo.Area.Trim(),
-                    FechaSolicitud = DateOnly.FromDateTime(DateTime.Now),
-                    Estado = EstadoSolicitud.Enviada
-                };
-
-                await _appContext.Solicituds.AddAsync(solicitud);
-                await _appContext.SaveChangesAsync();
+                _store.AddSolicitud(modelo.IdRol, modelo.Nombres.Trim(), modelo.Apellidos.Trim(), modelo.DNI.Trim(), modelo.Telefono.Trim(), modelo.CorreoElectronico.Trim(), modelo.Area.Trim());
 
                 TempData["Mensaje"] = "Tu solicitud ha sido enviada correctamente. Espera la revisión del administrador.";
                 return View();
-            }
-
-            catch (DbUpdateException ex)
-            {
-                var errorMessage = ex.InnerException?.Message ?? ex.Message;
-                TempData["Error"] = $"Error al guardar en la base de datos: {errorMessage}";
-                return View(modelo);
             }
 
             catch (Exception ex)
