@@ -529,6 +529,30 @@ namespace Campus_Virtul_GRLL.Services
             return (Guid)idObj!;
         }
 
+        public async Task UpdateSesionAsync(Guid sesionId, string? nuevoTitulo = null, int? nuevoOrden = null)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"update public.sesiones set 
+                                                titulo = coalesce(@t, titulo),
+                                                orden = coalesce(@o, orden),
+                                                actualizado_en = now()
+                                              where id=@id", conn);
+            cmd.Parameters.AddWithValue("t", (object?)nuevoTitulo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("o", (object?)nuevoOrden ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("id", sesionId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteSesionAsync(Guid sesionId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("delete from public.sesiones where id=@id", conn);
+            cmd.Parameters.AddWithValue("id", sesionId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task<List<(Guid id, string titulo, string tipo, string estado, int orden)>> GetSubseccionesPorSesionAsync(Guid sesionId)
         {
             var list = new List<(Guid, string, string, string, int)>();
@@ -562,6 +586,66 @@ namespace Campus_Virtul_GRLL.Services
             cmd.Parameters.AddWithValue("est", estado);
             var idObj = await cmd.ExecuteScalarAsync();
             return (Guid)idObj!;
+        }
+
+        public async Task UpdateSubseccionAsync(
+            Guid subseccionId,
+            string? nuevoTitulo = null,
+            string? nuevoTipo = null,
+            string? nuevoTextoContenido = null,
+            string? nuevoArchivoUrl = null,
+            string? nuevoArchivoMime = null,
+            long? nuevoArchivoSizeBytes = null,
+            string? nuevoVideoUrl = null,
+            string? nuevoVideoMime = null,
+            long? nuevoVideoSizeBytes = null,
+            int? nuevoVideoDuracionSegundos = null,
+            int? nuevoMaxPuntaje = null,
+            int? nuevoOrden = null)
+        {
+            // Validar tipo si se provee
+            if (nuevoTipo != null && !(new[]{"contenido","video","tarea"}.Contains(nuevoTipo))) nuevoTipo = null;
+
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"update public.subsecciones set
+                                                titulo = coalesce(@t, titulo),
+                                                tipo = coalesce(@tp, tipo),
+                                                texto_contenido = coalesce(@txt, texto_contenido),
+                                                archivo_url = coalesce(@aurl, archivo_url),
+                                                archivo_mime = coalesce(@amime, archivo_mime),
+                                                archivo_size_bytes = coalesce(@asize, archivo_size_bytes),
+                                                video_url = coalesce(@vurl, video_url),
+                                                video_mime = coalesce(@vmime, video_mime),
+                                                video_size_bytes = coalesce(@vsize, video_size_bytes),
+                                                video_duracion_segundos = coalesce(@vdur, video_duracion_segundos),
+                                                max_puntaje = coalesce(@mp, max_puntaje),
+                                                orden = coalesce(@o, orden),
+                                                actualizado_en = now()
+                                              where id=@id", conn);
+            cmd.Parameters.AddWithValue("t", (object?)nuevoTitulo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("tp", (object?)nuevoTipo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("txt", (object?)nuevoTextoContenido ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("aurl", (object?)nuevoArchivoUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("amime", (object?)nuevoArchivoMime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("asize", (object?)nuevoArchivoSizeBytes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("vurl", (object?)nuevoVideoUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("vmime", (object?)nuevoVideoMime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("vsize", (object?)nuevoVideoSizeBytes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("vdur", (object?)nuevoVideoDuracionSegundos ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("mp", (object?)nuevoMaxPuntaje ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("o", (object?)nuevoOrden ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("id", subseccionId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteSubseccionAsync(Guid subseccionId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("delete from public.subsecciones where id=@id", conn);
+            cmd.Parameters.AddWithValue("id", subseccionId);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task UpdateSubseccionEstadoAsync(Guid subseccionId, string nuevoEstado)

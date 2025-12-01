@@ -1,0 +1,66 @@
+@model dynamic
+@{
+    ViewData["Title"] = "Subsección";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var c = (ValueTuple<Guid, string, string?, string, DateTime>)ViewBag.Curso;
+    var sub = ((Guid id, Guid sesionId, string titulo, string tipo, string estado, string? texto, string? archivoUrl, string? archivoMime, long? archivoSize, string? videoUrl, string? videoMime, long? videoSize, int? videoDuracion))ViewBag.Subseccion;
+    string? archivoSigned = ViewBag.ArchivoSigned as string;
+    string? videoSigned = ViewBag.VideoSigned as string;
+}
+<div class="container-fluid">
+    <a class="btn btn-link" href="@Url.Action("DetalleProfesor","Cursos", new { id = c.Item1 })">← Volver al curso</a>
+    <h3 class="mb-2">@sub.titulo</h3>
+    <p class="text-muted">Tipo: @sub.tipo · Estado: @sub.estado</p>
+
+    @if (sub.tipo == "contenido" || sub.tipo == "tarea")
+    {
+        if (!string.IsNullOrWhiteSpace(sub.texto))
+        {
+            <div class="content-card mb-3">
+                <h6>Contenido</h6>
+                <p>@sub.texto</p>
+            </div>
+        }
+        if (!string.IsNullOrWhiteSpace(archivoSigned))
+        {
+            <div class="content-card mb-3">
+                <h6>Archivo adjunto</h6>
+                @if ((sub.archivoMime ?? "").StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (archivoSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
+                {
+                    <div class="ratio" style="--bs-aspect-ratio: 140%;">
+                        <iframe src="@archivoSigned#toolbar=1&navpanes=0" style="width:100%; height:100%; border:0;" title="Visor PDF"></iframe>
+                    </div>
+                }
+                <div class="mt-2">
+                    <a class="btn btn-primary" href="@archivoSigned" target="_blank">Descargar adjunto</a>
+                    <p class="text-muted d-inline ms-2">@sub.archivoMime (@(sub.archivoSize ?? 0) bytes)</p>
+                </div>
+            </div>
+        }
+    }
+    else if (sub.tipo == "video")
+    {
+        if (!string.IsNullOrWhiteSpace(videoSigned))
+        {
+            <div class="ratio ratio-16x9 mb-3">
+                <video src="@videoSigned" controls preload="metadata"></video>
+            </div>
+            <p class="text-muted">@sub.videoMime · Tamaño: @(sub.videoSize ?? 0) bytes · Duración aprox: @(sub.videoDuracion ?? 0) s</p>
+        }
+        else
+        {
+            <div class="alert alert-warning">Video no disponible.</div>
+        }
+        if (!string.IsNullOrWhiteSpace(sub.texto))
+        {
+            <div class="content-card mb-3">
+                <h6>Notas</h6>
+                <p>@sub.texto</p>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">Tipo desconocido.</div>
+    }
+</div>

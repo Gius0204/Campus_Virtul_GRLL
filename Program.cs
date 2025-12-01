@@ -36,6 +36,14 @@ builder.Services.AddControllersWithViews();
 // Cargar variables desde .env si existe
 try { new EnvLoader().Load(); } catch { /* Ignorar si no existe */ }
 
+// Registrar StorageService y opciones
+var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? "";
+var supabaseAnon = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY") ?? "";
+var supabaseService = Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY") ?? ""; // Mantener fuera de código fuente
+var storageOptions = new StorageOptions(supabaseUrl, supabaseAnon, supabaseService);
+builder.Services.AddSingleton(storageOptions);
+builder.Services.AddHttpClient<StorageService>();
+
 var app = builder.Build();
 
 // ============================================

@@ -89,7 +89,9 @@
                                                         @foreach (var sub in s.subsecciones)
                                                         {
                                                             <tr>
-                                                                <td>@sub.titulo</td>
+                                                                <td>
+                                                                    <a href="@Url.Action("VerSubseccion","Cursos", new { idCurso = c.id, subseccionId = sub.id })" class="text-decoration-none">@sub.titulo</a>
+                                                                </td>
                                                                 <td>@sub.tipo</td>
                                                                 <td>@sub.estado</td>
                                                                 <td>
@@ -101,6 +103,44 @@
                                                                             <input type="hidden" name="subseccionId" value="@sub.id" />
                                                                             <input type="hidden" name="nuevoEstado" value="@(sub.estado == "publicado" ? "borrador" : "publicado")" />
                                                                             <button class="btn btn-sm @(sub.estado == "publicado" ? "btn-secondary" : "btn-success")">@(sub.estado == "publicado" ? "Borrador" : "Publicar")</button>
+                                                                        </form>
+                                                                        <!-- Editar subsección -->
+                                                                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-sub-@sub.id">Editar</button>
+                                                                        <div id="edit-sub-@sub.id" class="collapse mt-2">
+                                                                            <form method="post" asp-action="EditarSubseccion" asp-controller="Cursos" class="row g-2">
+                                                                                @Html.AntiForgeryToken()
+                                                                                <input type="hidden" name="idCurso" value="@c.id" />
+                                                                                <input type="hidden" name="subseccionId" value="@sub.id" />
+                                                                                <div class="col-md-3">
+                                                                                    <input name="titulo" class="form-control form-control-sm" placeholder="Título" value="@sub.titulo" />
+                                                                                </div>
+                                                                                <div class="col-md-2">
+                                                                                    <select name="tipo" class="form-select form-select-sm">
+                                                                                        <option value="contenido">Contenido</option>
+                                                                                        <option value="video">Video</option>
+                                                                                        <option value="tarea">Tarea</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                                <div class="col-md-4">
+                                                                                    <input name="textoContenido" class="form-control form-control-sm" placeholder="Texto / Instrucciones" />
+                                                                                </div>
+                                                                                <div class="col-md-2">
+                                                                                    <input type="number" name="maxPuntaje" class="form-control form-control-sm" placeholder="Puntaje (tarea)" min="0" max="20" />
+                                                                                </div>
+                                                                                <div class="col-md-1">
+                                                                                    <input type="number" name="orden" class="form-control form-control-sm" placeholder="Orden" min="1" />
+                                                                                </div>
+                                                                                <div class="col-md-12 text-end">
+                                                                                    <button class="btn btn-primary btn-sm">Guardar</button>
+                                                                                </div>
+                                                                            </form>
+                                                                        </div>
+                                                                        <!-- Eliminar subsección -->
+                                                                        <form method="post" asp-action="EliminarSubseccion" asp-controller="Cursos" class="d-inline ms-1" onsubmit="return confirm('¿Eliminar esta subsección?');">
+                                                                            @Html.AntiForgeryToken()
+                                                                            <input type="hidden" name="idCurso" value="@c.id" />
+                                                                            <input type="hidden" name="subseccionId" value="@sub.id" />
+                                                                            <button class="btn btn-sm btn-outline-danger">Eliminar</button>
                                                                         </form>
                                                                     }
                                                                 </td>
@@ -121,7 +161,7 @@
                                                         <input name="titulo" class="form-control form-control-sm" placeholder="Título" required />
                                                     </div>
                                                     <div class="col-md-3">
-                                                        <select name="tipo" class="form-select form-select-sm">
+                                                        <select name="tipo" class="form-select form-select-sm tipo-subseccion">
                                                             <option value="contenido">Contenido</option>
                                                             <option value="video">Video</option>
                                                             <option value="tarea">Tarea</option>
@@ -131,10 +171,14 @@
                                                         <input name="textoContenido" class="form-control form-control-sm" placeholder="Texto / Instrucciones (opcional)" />
                                                     </div>
                                                     <div class="col-md-4">
-                                                        <input type="file" name="archivo" class="form-control form-control-sm" />
+                                                        <!-- Adjuntos múltiples para tipos distintos de video -->
+                                                        <input type="file" name="archivos" class="form-control form-control-sm input-archivos" multiple />
+                                                        <small class="text-muted">Puedes adjuntar varios archivos si el tipo no es Video.</small>
                                                     </div>
                                                     <div class="col-md-4">
-                                                        <input type="file" name="video" accept="video/*" class="form-control form-control-sm" />
+                                                        <!-- Un solo archivo cuando el tipo es Video -->
+                                                        <input type="file" name="video" accept="video/*" class="form-control form-control-sm input-video" />
+                                                        <small class="text-muted">Solo un video permitido cuando el tipo es Video.</small>
                                                     </div>
                                                     <div class="col-md-2">
                                                         <input type="number" name="maxPuntaje" class="form-control form-control-sm" placeholder="Puntaje (tarea)" min="0" max="20" />
@@ -153,7 +197,9 @@
                     @if (puedeEditar)
                     {
                         <hr />
-                        <h6>Nueva sesión</h6>
+                        <h6>Gestionar sesiones</h6>
+                        <!-- Crear nueva sesión -->
+                        <h6 class="mt-2">Nueva sesión</h6>
                         <form method="post" asp-action="CrearSesion" asp-controller="Cursos" class="row g-2">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="idCurso" value="@c.id" />
@@ -167,6 +213,36 @@
                                 <button class="btn btn-success btn-sm">Crear sesión</button>
                             </div>
                         </form>
+                        <!-- Editar / Eliminar sesiones existentes -->
+                        @if (sesiones.Any())
+                        {
+                            <h6 class="mt-4">Editar / Eliminar sesión</h6>
+                            @foreach (var s2 in sesiones)
+                            {
+                                <form method="post" asp-action="EditarSesion" asp-controller="Cursos" class="row g-2 mb-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="idCurso" value="@c.id" />
+                                    <input type="hidden" name="sesionId" value="@s2.sesionId" />
+                                    <div class="col-md-6">
+                                        <input name="titulo" class="form-control form-control-sm" placeholder="Título" value="@s2.titulo" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="number" name="orden" class="form-control form-control-sm" placeholder="Orden" value="@s2.orden" min="1" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-primary btn-sm">Guardar</button>
+                                    </div>
+                                    <div class="col-md-2 text-end">
+                                        <form method="post" asp-action="EliminarSesion" asp-controller="Cursos" onsubmit="return confirm('¿Eliminar sesión y sus subsecciones?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="idCurso" value="@c.id" />
+                                            <input type="hidden" name="sesionId" value="@s2.sesionId" />
+                                            <button class="btn btn-outline-danger btn-sm">Eliminar</button>
+                                        </form>
+                                    </div>
+                                </form>
+                            }
+                        }
                     }
                 </div>
             </div>
@@ -214,6 +290,31 @@
                     });
                 }
                 attachSearch();
+
+                // Toggle inputs based on tipo selection in "Nueva subsección" forms
+                function attachTipoToggle(){
+                    document.querySelectorAll('form[asp-action="CrearSubseccion"]').forEach(form => {
+                        const tipoSel = form.querySelector('.tipo-subseccion');
+                        const inputArchivos = form.querySelector('.input-archivos');
+                        const inputVideo = form.querySelector('.input-video');
+                        if(!tipoSel || !inputArchivos || !inputVideo) return;
+                        const apply = () => {
+                            const tipo = tipoSel.value;
+                            if(tipo === 'video'){
+                                inputArchivos.disabled = true;
+                                inputArchivos.value = '';
+                                inputVideo.disabled = false;
+                            } else {
+                                inputArchivos.disabled = false;
+                                inputVideo.disabled = true;
+                                inputVideo.value = '';
+                            }
+                        };
+                        tipoSel.addEventListener('change', apply);
+                        apply();
+                    });
+                }
+                attachTipoToggle();
             })();
         </script>
 
