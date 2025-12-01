@@ -1,34 +1,52 @@
-@using Campus_Virtul_GRLL.Models
+@model IEnumerable<Campus_Virtul_GRLL.Models.ViewModels.InscripcionPendienteVm>
 @{
-    ViewData["Title"] = "Inscripciones - Cursos";
+    ViewData["Title"] = "Inscripciones Pendientes";
     Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
-    var resumen = ViewBag.Resumen as System.Collections.IEnumerable;
 }
 <div class="container-fluid">
     <h1 class="page-title mb-3">Inscripciones Pendientes</h1>
-    <p class="text-muted">Seleccione un curso para revisar las solicitudes.</p>
-
-    <div class="row">
-        @if (resumen == null)
-        {
-            <div class="alert alert-info">No tiene cursos asignados.</div>
-        }
-        else
-        {
-            foreach (var item in resumen)
-            {
-                dynamic x = item;
-                <div class="col-md-6">
-                    <div class="content-card mb-3">
-                        <h5>@x.Curso.Titulo</h5>
-                        <p class="small text-muted">@x.Curso.Descripcion</p>
-                        <span class="badge bg-warning text-dark">Pendientes: @x.Pendientes</span>
-                        <div class="mt-2">
-                            <a class="btn btn-primary btn-sm" href="@Url.Action("Pendientes", "Inscripciones", new { idCurso = x.Curso.IdCurso })">Revisar</a>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
-    </div>
-</div>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (Model == null || !Model.Any())
+    {
+        <div class="alert alert-info">No hay solicitudes pendientes.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Curso</th>
+                        <th>Practicante</th>
+                        <th>Correo</th>
+                        <th>Fecha</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var i in Model)
+                {
+                    <tr>
+                        <td>@i.CursoTitulo</td>
+                        <td>@i.PracticanteNombre</td>
+                        <td>@i.PracticanteCorreo</td>
+                        <td>@i.CreadaEn.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            <form method="post" asp-action="Aprobar" asp-controller="Inscripciones" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@i.SolicitudId" />
+                                <button class="btn btn-sm btn-success">Aprobar</button>
+                            </form>
+                            <form method="post" asp-action="Rechazar" asp-controller="Inscripciones" class="d-inline ms-1">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@i.SolicitudId" />
+                                <button class="btn btn-sm btn-danger">Rechazar</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+ </div>

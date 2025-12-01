@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Campus_Virtul_GRLL.Data;
 using Campus_Virtul_GRLL.Models;
 using Microsoft.AspNetCore.Http;
+using Campus_Virtul_GRLL.Services;
+using System.Security.Claims;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,42 +12,85 @@ namespace Campus_Virtul_GRLL.Controllers
 {
     public class PracticanteController : Controller
     {
-        private readonly AppDBContext _db;
+        private readonly SupabaseRepository _repo;
 
-        public PracticanteController(AppDBContext db)
+        public PracticanteController(SupabaseRepository repo)
         {
-            _db = db;
+            _repo = repo;
         }
 
         // GET: /Practicante/Catalogo
         public async Task<IActionResult> Catalogo()
         {
-            var modulos = await _db.Modulos.AsNoTracking().ToListAsync();
-            return View("~/Views/Practicante/Index.cshtml", modulos);
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            Guid? uid = null;
+            if (!string.IsNullOrWhiteSpace(userIdStr) && Guid.TryParse(userIdStr, out var g)) uid = g;
+
+            var cursos = await _repo.GetCursosAsync();
+            var pendientes = uid.HasValue ? await _repo.GetSolicitudesInscripcionPorUsuarioAsync(uid.Value) : new List<(Guid cursoId, string estado)>();
+            var inscritos = uid.HasValue ? await _repo.GetCursosPorPracticanteAsync(uid.Value) : new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+
+            var vm = cursos.Select(c => new Models.ViewModels.CursoCatalogoVm
+            {
+                Id = c.id,
+                Titulo = c.titulo,
+                Descripcion = c.descripcion,
+                Estado = c.estado,
+                EstaInscrito = inscritos.Any(x => x.id == c.id),
+                TieneSolicitudPendiente = pendientes.Any(p => p.cursoId == c.id && string.Equals(p.estado, "pendiente", StringComparison.OrdinalIgnoreCase)),
+                Profesores = new System.Collections.Generic.List<(System.Guid profesorId, string nombre, string correo)>()
+            }).ToList();
+
+            // Cargar profesores por curso para el modal de información
+            foreach (var item in vm)
+            {
+                var profesores = await _repo.GetCursoProfesoresAsync(item.Id);
+                item.Profesores = profesores.Select(p => (p.profesorId, p.nombres, p.correo)).ToList();
+            }
+            return View("~/Views/Practicante/Index.cshtml", vm);
         }
 
         // GET: /Practicante/MisCursos
         public async Task<IActionResult> MisCursos()
         {
-            // No hay relación de cursos en el modelo actual; mostramos los mismos módulos como accesibles
-            var modulos = await _db.Modulos.AsNoTracking().ToListAsync();
-            return View("~/Views/Practicante/MisCursos.cshtml", modulos);
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var uid))
+                return RedirectToAction("Index", "Login");
+
+            var cursos = await _repo.GetCursosPorPracticanteAsync(uid);
+            var vm = cursos
+                .Select(c => new Models.ViewModels.CursoVm
+                {
+                    Id = c.id,
+                    Titulo = c.titulo,
+                    Descripcion = c.descripcion,
+                    Estado = c.estado
+                }).ToList();
+            return View("~/Views/Practicante/MisCursos.cshtml", vm);
         }
 
         // GET: /Practicante/Detalle/{id}
-        public async Task<IActionResult> Detalle(int id)
+        public async Task<IActionResult> Detalle(Guid id)
         {
-            var modulo = await _db.Modulos.AsNoTracking().FirstOrDefaultAsync(m => m.IdModulo == id);
-            if (modulo == null) return NotFound();
-            return View("~/Views/Practicante/Detalle.cshtml", modulo);
+            var cursos = await _repo.GetCursosAsync();
+            var c = cursos.FirstOrDefault(x => x.id == id);
+            if (c.id == Guid.Empty) return NotFound();
+            var vm = new Models.ViewModels.CursoVm { Id = c.id, Titulo = c.titulo, Descripcion = c.descripcion, Estado = c.estado };
+            return View("~/Views/Practicante/Detalle.cshtml", vm);
         }
 
         // POST: /Practicante/SolicitarInscripcion/{cursoId}
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SolicitarInscripcion(int moduloId)
+        public async Task<IActionResult> SolicitarInscripcion(Guid cursoId)
         {
-            // El flujo de inscripción no está modelado en esta base; dejamos como no-op por ahora
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var uid))
+                return RedirectToAction("Index", "Login");
+
+            // Crear solicitud tipo 'inscripcion' con detalle el cursoId
+            await _repo.CreateSolicitudAsync(uid, "inscripcion", cursoId.ToString());
+            TempData["Mensaje"] = "Solicitud de inscripción enviada.";
             return RedirectToAction(nameof(Catalogo));
         }
     }

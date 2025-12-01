@@ -1,34 +1,85 @@
-@model IEnumerable<Campus_Virtul_GRLL.Models.Modulo>
+@model IEnumerable<Campus_Virtul_GRLL.Models.ViewModels.CursoCatalogoVm>
 @{
     ViewData["Title"] = "Catálogo de Cursos";
-    var pendientes = new HashSet<int>();
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
 }
 
-<h2>Catálogo de Cursos</h2>
-<div class="row">
-    @foreach (var curso in Model)
-    {
-        var isPendiente = false;
-        <div class="col-md-4">
-            <div class="card mb-3 @(isPendiente ? "opacity-50" : "")">
-                <div class="card-body">
-                    <h5 class="card-title">@curso.Titulo</h5>
-                    <p class="card-text">@curso.Descripcion</p>
-                    <p><strong>Estado:</strong> @curso.Estado</p>
-                    <a class="btn btn-primary" href="@Url.Action("Detalle", "Practicante", new { id = curso.IdModulo })">Ver Detalle</a>
-                    @if (!isPendiente)
+<div class="container-fluid">
+    <h1 class="page-title mb-3">Catálogo de Cursos</h1>
+    <div class="row">
+        @foreach (var curso in Model)
+        {
+            var cardDisabled = curso.TieneSolicitudPendiente && !curso.EstaInscrito;
+            <div class="col-md-4">
+                <div class="content-card mb-3 @(cardDisabled ? "opacity-50" : "")">
+                    <h5>@curso.Titulo</h5>
+                    <p class="small text-muted">@curso.Descripcion</p>
+                    <p class="mb-2"><strong>Estado:</strong> @curso.Estado</p>
+
+                    @if (curso.EstaInscrito)
                     {
-                        <form method="post" asp-action="SolicitarInscripcion" asp-controller="Practicante" asp-route-moduloId="@curso.IdModulo" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <button type="submit" class="btn btn-outline-success ms-2">Solicitar Inscripción</button>
-                        </form>
+                        <a class="btn btn-primary btn-sm" href="@Url.Action("Detalle", "Practicante", new { id = curso.Id })">Entrar</a>
+                    }
+                    else if (curso.TieneSolicitudPendiente)
+                    {
+                        <span class="badge bg-warning text-dark">Solicitud enviada, esperando aprobación</span>
                     }
                     else
-                    {
-                        <span class="badge bg-warning text-dark ms-2">Solicitud pendiente</span>
+                        {
+                            <form method="post" asp-action="SolicitarInscripcion" asp-controller="Practicante" asp-route-cursoId="@curso.Id" class="d-inline solicit-form">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-success btn-sm">Solicitar Inscripción</button>
+                        </form>
+                            <button type="button" class="btn btn-secondary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#infoModal-@curso.Id">Ver Info</button>
                     }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+    <!-- Modals de información por curso -->
+    @foreach (var curso in Model)
+    {
+        <div class="modal fade" id="infoModal-@curso.Id" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@curso.Titulo — Profesores</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (curso.Profesores.Count == 0)
+                        {
+                            <div class="alert alert-info">Este curso aún no tiene profesores asignados.</div>
+                        }
+                        else
+                        {
+                            <ul class="list-group">
+                                @foreach (var p in curso.Profesores)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@p.nombre</span>
+                                        <span class="badge bg-light text-dark">@p.correo</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
                 </div>
             </div>
         </div>
     }
-}</div>
+
+    <script>
+        // Deshabilita el botón de enviar para evitar duplicados
+        document.querySelectorAll('.solicit-form').forEach(function(form){
+            form.addEventListener('submit', function(e){
+                const btn = form.querySelector('button[type="submit"]');
+                if (btn){ btn.disabled = true; btn.textContent = 'Enviando...'; }
+            });
+        });
+    </script>

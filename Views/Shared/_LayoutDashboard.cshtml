@@ -63,8 +63,8 @@
                 </li>
                 @* Catálogo visible para Practicante y Profesor *@
                 @if (rol == "Practicante" || rol == "Profesor" || rol == "Administrador") {
-                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
-                        <a href="@Url.Action("Index", "Cursos")">
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == (rol == "Practicante" ? "Practicante" : "Cursos") && ViewContext.RouteData.Values["action"]?.ToString() == (rol == "Practicante" ? "Catalogo" : "Index") ? "active" : "")">
+                        <a href="@(rol == "Practicante" ? Url.Action("Catalogo", "Practicante") : Url.Action("Index", "Cursos"))">
                             <span class="icon">📚</span>
                             <span>Catálogo Cursos</span>
                         </a>
@@ -72,8 +72,8 @@
                 }
                 @* Mis Cursos visible excepto Administrador *@
                 @if (rol != "Administrador") {
-                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
-                        <a href="@Url.Action("MisCursos", "Cursos")">
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == (rol == "Practicante" ? "Practicante" : "Cursos") && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
+                        <a href="@(rol == "Practicante" ? Url.Action("MisCursos", "Practicante") : Url.Action("MisCursos", "Cursos"))">
                             <span class="icon">🎓</span>
                             <span>Mis Cursos</span>
                         </a>

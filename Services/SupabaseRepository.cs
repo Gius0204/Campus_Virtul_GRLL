@@ -710,5 +710,111 @@ namespace Campus_Virtul_GRLL.Services
             cmd.Parameters.AddWithValue("p", practicanteId);
             await cmd.ExecuteNonQueryAsync();
         }
+
+        // ----- Inscripciones (solicitudes de practicantes a cursos) -----
+        public async Task<List<(Guid solicitudId, Guid cursoId, string cursoTitulo, Guid practicanteId, string practicanteNombre, string practicanteCorreo, DateTime creadaEn)>> GetInscripcionesPendientesPorProfesorAsync(Guid profesorId)
+        {
+            var list = new List<(Guid, Guid, string, Guid, string, string, DateTime)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select s.id as solicitud_id,
+                                                       s.detalle::uuid as curso_id,
+                                                       c.titulo as curso_titulo,
+                                                       u.id as practicante_id,
+                                                       u.nombres as practicante_nombre,
+                                                       coalesce(u.correo,'') as practicante_correo,
+                                                       s.creada_en
+                                                from public.solicitudes s
+                                                join public.curso_profesores cp on cp.curso_id = s.detalle::uuid
+                                                join public.cursos c on c.id = cp.curso_id
+                                                join public.usuarios u on u.id = s.usuario_id
+                                                where lower(s.tipo) = 'inscripcion'
+                                                  and coalesce(s.estado, 'pendiente') = 'pendiente'
+                                                  and cp.profesor_id = @pid
+                                                order by s.creada_en desc", conn);
+            cmd.Parameters.AddWithValue("pid", profesorId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((
+                    reader.GetGuid(0),
+                    reader.GetGuid(1),
+                    reader.GetString(2),
+                    reader.GetGuid(3),
+                    reader.GetString(4),
+                    reader.GetString(5),
+                    reader.GetDateTime(6)
+                ));
+            }
+            return list;
+        }
+
+        public async Task ApproveInscripcionAsync(Guid solicitudId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // Insertar relación curso-practicante a partir de la solicitud
+                using (var cmdIns = new NpgsqlCommand(@"insert into public.curso_practicantes (curso_id, practicante_id)
+                                                        select s.detalle::uuid, s.usuario_id
+                                                        from public.solicitudes s
+                                                        where s.id = @sid
+                                                        on conflict do nothing", conn, (NpgsqlTransaction)tx))
+                {
+                    cmdIns.Parameters.AddWithValue("sid", solicitudId);
+                    await cmdIns.ExecuteNonQueryAsync();
+                }
+                // Marcar solicitud como aprobada
+                using (var cmdUpd = new NpgsqlCommand("update public.solicitudes set estado='aprobada' where id=@sid", conn, (NpgsqlTransaction)tx))
+                {
+                    cmdUpd.Parameters.AddWithValue("sid", solicitudId);
+                    await cmdUpd.ExecuteNonQueryAsync();
+                }
+                await tx.CommitAsync();
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>> GetCursosPorPracticanteAsync(Guid practicanteId)
+        {
+            var list = new List<(Guid, string, string?, string, DateTime)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador'), c.creado_en
+                                               from public.curso_practicantes cp
+                                               join public.cursos c on c.id = cp.curso_id
+                                               where cp.practicante_id = @pid
+                                               order by c.creado_en desc", conn);
+            cmd.Parameters.AddWithValue("pid", practicanteId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2)? null: reader.GetString(2), reader.GetString(3), reader.GetDateTime(4)));
+            }
+            return list;
+        }
+
+        public async Task<List<(Guid cursoId, string estado)>> GetSolicitudesInscripcionPorUsuarioAsync(Guid usuarioId)
+        {
+            var list = new List<(Guid, string)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select detalle::uuid as curso_id, coalesce(estado,'pendiente') as estado
+                                               from public.solicitudes
+                                               where usuario_id=@uid and lower(tipo)='inscripcion'", conn);
+            cmd.Parameters.AddWithValue("uid", usuarioId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((reader.GetGuid(0), reader.GetString(1)));
+            }
+            return list;
+        }
     }
 }

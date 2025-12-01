@@ -1,15 +1,14 @@
-@model Campus_Virtul_GRLL.Models.Modulo
+@model Campus_Virtul_GRLL.Models.ViewModels.CursoVm
 @{
     ViewData["Title"] = Model.Titulo;
-    // No hay sesiones/subsecciones modeladas aquí; vista de solo lectura del módulo
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
 }
 
-<h2>@Model.Titulo</h2>
-<p>@Model.Descripcion</p>
-
-<div class="card mt-3">
-    <div class="card-body">
-        <h5>Información del módulo</h5>
+<div class="container-fluid">
+    <h1 class="page-title mb-2">@Model.Titulo</h1>
+    <div class="content-card">
+        <h5>Información del curso</h5>
+        <p class="small text-muted">@Model.Descripcion</p>
         <ul class="list-unstyled">
             <li><strong>Título:</strong> @Model.Titulo</li>
             <li><strong>Descripción:</strong> @Model.Descripcion</li>

@@ -1,72 +1,69 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Campus_Virtul_GRLL.Services;
-using Campus_Virtul_GRLL.Models;
-using Campus_Virtul_GRLL.Helpers;
+using System;
 using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
-    [Authorize(Roles="Profesor")]
     public class InscripcionesController : Controller
     {
-        private readonly InMemoryDataStore _store;
-        private readonly ILogger<InscripcionesController> _logger;
-
-        public InscripcionesController(InMemoryDataStore store, ILogger<InscripcionesController> logger)
+        private readonly SupabaseRepository _repo;
+        public InscripcionesController(SupabaseRepository repo)
         {
-            _store = store;
-            _logger = logger;
+            _repo = repo;
         }
 
-        // Selector de cursos del profesor con pendientes
         [HttpGet]
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            var userId = User.GetUserId();
-            var cursosProfesor = _store.Cursos.Values.Where(c => c.IdProfesor == userId).ToList();
-            var resumen = cursosProfesor.Select(c => new
+            var rol = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+            if (!string.Equals(rol, "Profesor", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("AccesoDenegado", "Login");
+
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var profesorId))
+                return RedirectToAction("Index", "Login");
+
+            var items = await _repo.GetInscripcionesPendientesPorProfesorAsync(profesorId);
+            var vm = items.Select(i => new Models.ViewModels.InscripcionPendienteVm
             {
-                Curso = c,
-                Pendientes = _store.Inscripciones.Values.Count(i => i.IdCurso == c.IdCurso && i.Estado == EstadoInscripcion.Pendiente)
+                SolicitudId = i.solicitudId,
+                CursoId = i.cursoId,
+                CursoTitulo = i.cursoTitulo,
+                PracticanteId = i.practicanteId,
+                PracticanteNombre = i.practicanteNombre,
+                PracticanteCorreo = i.practicanteCorreo,
+                CreadaEn = i.creadaEn
             }).ToList();
-            ViewBag.Resumen = resumen;
-            return View();
-        }
-
-        // Lista de solicitudes de inscripción pendientes para un curso del profesor
-        [HttpGet]
-        public IActionResult Pendientes(int idCurso)
-        {
-            if (!_store.Cursos.TryGetValue(idCurso, out var curso)) return NotFound();
-            if (User.GetUserRole() == "Profesor" && curso.IdProfesor != User.GetUserId()) return Forbid();
-            var pendientes = _store.Inscripciones.Values.Where(i => i.IdCurso == idCurso && i.Estado == EstadoInscripcion.Pendiente).ToList();
-            ViewBag.Curso = curso;
-            return View(pendientes);
+            return View("~/Views/Inscripciones/Index.cshtml", vm);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Aprobar(int idInscripcion)
+        public async Task<IActionResult> Aprobar(Guid id)
         {
-            if (!_store.Inscripciones.TryGetValue(idInscripcion, out var ins)) return NotFound();
-            if (!_store.Cursos.TryGetValue(ins.IdCurso, out var curso)) return NotFound();
-            if (User.GetUserRole() == "Profesor" && curso.IdProfesor != User.GetUserId()) return Forbid();
-            _store.CambiarEstadoInscripcion(idInscripcion, EstadoInscripcion.Aprobada);
+            var rol = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+            if (!string.Equals(rol, "Profesor", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("AccesoDenegado", "Login");
+
+            await _repo.ApproveInscripcionAsync(id);
             TempData["Mensaje"] = "Inscripción aprobada";
-            return RedirectToAction("Pendientes", new { idCurso = ins.IdCurso });
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Rechazar(int idInscripcion)
+        public async Task<IActionResult> Rechazar(Guid id)
         {
-            if (!_store.Inscripciones.TryGetValue(idInscripcion, out var ins)) return NotFound();
-            if (!_store.Cursos.TryGetValue(ins.IdCurso, out var curso)) return NotFound();
-            if (User.GetUserRole() == "Profesor" && curso.IdProfesor != User.GetUserId()) return Forbid();
-            _store.CambiarEstadoInscripcion(idInscripcion, EstadoInscripcion.Rechazada);
+            var rol = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+            if (!string.Equals(rol, "Profesor", StringComparison.OrdinalIgnoreCase))
+                return RedirectToAction("AccesoDenegado", "Login");
+
+            await _repo.UpdateSolicitudEstadoAsync(id, "rechazada");
             TempData["Mensaje"] = "Inscripción rechazada";
-            return RedirectToAction("Pendientes", new { idCurso = ins.IdCurso });
+            return RedirectToAction(nameof(Index));
         }
     }
 }
