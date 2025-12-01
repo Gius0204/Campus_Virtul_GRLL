@@ -42,7 +42,7 @@
     @foreach (var curso in Model)
     {
         <div class="modal fade" id="infoModal-@curso.Id" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">@curso.Titulo — Profesores</h5>
@@ -55,15 +55,31 @@
                         }
                         else
                         {
-                            <ul class="list-group">
-                                @foreach (var p in curso.Profesores)
-                                {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@p.nombre</span>
-                                        <span class="badge bg-light text-dark">@p.correo</span>
-                                    </li>
-                                }
-                            </ul>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Apellidos</th>
+                                            <th>Teléfono</th>
+                                            <th>Correo</th>
+                                            <th>Área</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var p in curso.Profesores)
+                                        {
+                                            <tr>
+                                                <td>@p.nombres</td>
+                                                <td>@(p.apellidos ?? "-")</td>
+                                                <td>@(p.telefono ?? "-")</td>
+                                                <td>@p.correo</td>
+                                                <td>@(p.area ?? "-")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
                         }
                     </div>
                     <div class="modal-footer">

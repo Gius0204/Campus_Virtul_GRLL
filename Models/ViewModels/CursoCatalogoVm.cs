@@ -10,6 +10,6 @@ namespace Campus_Virtul_GRLL.Models.ViewModels
         public string Estado { get; set; } = string.Empty;
         public bool EstaInscrito { get; set; }
         public bool TieneSolicitudPendiente { get; set; }
-        public System.Collections.Generic.List<(System.Guid profesorId, string nombre, string correo)> Profesores { get; set; } = new();
+        public System.Collections.Generic.List<(System.Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)> Profesores { get; set; } = new();
     }
 }

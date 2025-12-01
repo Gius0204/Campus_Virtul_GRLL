@@ -323,21 +323,29 @@ namespace Campus_Virtul_GRLL.Services
             return list;
         }
 
-        public async Task<List<(Guid profesorId, string nombres, string correo)>> GetCursoProfesoresAsync(Guid cursoId)
+        public async Task<List<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? areaNombre)>> GetCursoProfesoresAsync(Guid cursoId)
         {
-            var list = new List<(Guid, string, string)>();
+            var list = new List<(Guid, string, string?, string?, string, string?)>();
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(@"select u.id, u.nombres, u.correo
+            using var cmd = new NpgsqlCommand(@"select u.id, u.nombres, u.apellidos, u.telefono, coalesce(u.correo,''), a.nombre as area_nombre
                                                from public.curso_profesores cp
                                                join public.usuarios u on u.id = cp.profesor_id
+                                               left join public.areas a on a.id = u.area_id
                                                where cp.curso_id=@cid
                                                order by u.nombres", conn);
             cmd.Parameters.AddWithValue("cid", cursoId);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                list.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
+                list.Add((
+                    reader.GetGuid(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5)
+                ));
             }
             return list;
         }
