@@ -1,0 +1,20 @@
+@model IEnumerable<Campus_Virtul_GRLL.Models.Modulo>
+@{
+    ViewData["Title"] = "Mis Cursos";
+}
+
+<h2>Mis Cursos</h2>
+<div class="row">
+    @foreach (var curso in Model)
+    {
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">@curso.Titulo</h5>
+                    <p class="card-text">@curso.Descripcion</p>
+                    <a class="btn btn-primary" href="@Url.Action("Detalle", "Practicante", new { id = curso.IdModulo })">Entrar</a>
+                </div>
+            </div>
+        </div>
+    }
+}</div>

@@ -553,17 +553,18 @@ namespace Campus_Virtul_GRLL.Services
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task<List<(Guid id, string titulo, string tipo, string estado, int orden)>> GetSubseccionesPorSesionAsync(Guid sesionId)
+        public async Task<List<(Guid id, string titulo, string tipo, string estado, int orden, DateTimeOffset? fechaLimite)>> GetSubseccionesPorSesionAsync(Guid sesionId)
         {
-            var list = new List<(Guid, string, string, string, int)>();
+            var list = new List<(Guid, string, string, string, int, DateTimeOffset?)>();
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("select id, titulo, tipo, estado, orden from public.subsecciones where sesion_id=@sid order by orden, creado_en", conn);
+            using var cmd = new NpgsqlCommand("select id, titulo, tipo, estado, orden, fecha_limite from public.subsecciones where sesion_id=@sid order by orden, creado_en", conn);
             cmd.Parameters.AddWithValue("sid", sesionId);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                list.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4)));
+                var fecha = reader.IsDBNull(5) ? (DateTimeOffset?)null : new DateTimeOffset(reader.GetDateTime(5), TimeSpan.Zero);
+                list.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), fecha));
             }
             return list;
         }

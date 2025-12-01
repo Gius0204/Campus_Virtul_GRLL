@@ -49,15 +49,24 @@
             <textarea name="textoContenido" class="form-control" rows="4" placeholder="Texto / Instrucciones">@sub.texto</textarea>
         </div>
         <div class="content-card mb-3">
-            <h6>Archivo adjunto</h6>
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="m-0">Archivo adjunto</h6>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#preview-archivo">Mostrar / Ocultar vista previa</button>
+            </div>
             @if (!string.IsNullOrWhiteSpace(archivoSigned))
             {
-                @if ((sub.archivoMime ?? "").StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (archivoSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
-                {
-                    <div class="ratio" style="--bs-aspect-ratio: 140%;">
-                        <iframe src="@archivoSigned#toolbar=1&navpanes=0" style="width:100%; height:100%; border:0;" title="Visor PDF"></iframe>
-                    </div>
-                }
+                <div id="preview-archivo" class="collapse show mt-2">
+                    @if ((sub.archivoMime ?? "").StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (archivoSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
+                    {
+                        <div class="ratio" style="--bs-aspect-ratio: 140%;">
+                            <iframe src="@archivoSigned#toolbar=1&navpanes=0" style="width:100%; height:100%; border:0;" title="Visor PDF"></iframe>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info">Vista previa no disponible; abre el enlace.</div>
+                    }
+                </div>
                 <div class="mt-2">
                     <a class="btn btn-primary" href="@archivoSigned" target="_blank">Descargar adjunto</a>
                     <p class="text-muted d-inline ms-2">@sub.archivoMime (@(sub.archivoSize ?? 0) bytes)</p>
@@ -129,8 +138,17 @@
                 @if (!string.IsNullOrWhiteSpace(videoSigned))
                 {
                     <button type="submit" class="btn btn-outline-danger ms-2" onclick="document.getElementById('accionArchivo').value='eliminar'">Eliminar</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#preview-video">Mostrar / Ocultar vista previa</button>
                 }
             </div>
+            @if (!string.IsNullOrWhiteSpace(videoSigned))
+            {
+                <div id="preview-video" class="collapse show mt-2">
+                    <div class="ratio ratio-16x9">
+                        <video src="@videoSigned" controls preload="metadata"></video>
+                    </div>
+                </div>
+            }
         </div>
         if (!string.IsNullOrWhiteSpace(sub.texto))
         {

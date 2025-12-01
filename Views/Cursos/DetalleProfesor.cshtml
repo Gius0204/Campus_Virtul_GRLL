@@ -58,7 +58,7 @@
                     <p><strong>Creado:</strong> @c.creadoEn.ToString("yyyy-MM-dd")</p>
                     <hr />
                     <h5>Sesiones</h5>
-                    @{ var sesiones = (IEnumerable<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>)ViewBag.Sesiones ?? Enumerable.Empty<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>(); }
+                    @{ var sesiones = (IEnumerable<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden, DateTimeOffset? fechaLimite)> subsecciones)>)ViewBag.Sesiones ?? Enumerable.Empty<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden, DateTimeOffset? fechaLimite)> subsecciones)>(); }
                     @if (!sesiones.Any())
                     {
                         <p class="text-muted">No hay sesiones creadas.</p>
@@ -101,7 +101,14 @@
                                                                 <td>
                                                                     <a href="@Url.Action("VerSubseccion","Cursos", new { idCurso = c.id, subseccionId = sub.id })" class="text-decoration-none">@sub.titulo</a>
                                                                 </td>
-                                                                <td>@sub.tipo</td>
+                                                                <td>
+                                                                    @sub.tipo
+                                                                    @if (sub.tipo == "tarea" && sub.fechaLimite.HasValue)
+                                                                    {
+                                                                        var fl = sub.fechaLimite.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                                                                        <span class="badge bg-warning text-dark ms-2">Vence @fl</span>
+                                                                    }
+                                                                </td>
                                                                 <td>@sub.estado</td>
                                                                 <td>
                                                                     @if (puedeEditar)

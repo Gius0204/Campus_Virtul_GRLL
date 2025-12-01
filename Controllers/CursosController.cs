@@ -89,7 +89,7 @@ namespace Campus_Virtul_GRLL.Controllers
             ViewBag.ProfesoresDisponibles = disponibles;
             // Sesiones y subsecciones para pestaña "Contenido del Curso"
             var sesiones = await _repo.GetSesionesPorCursoAsync(id);
-            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>();
+            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden, DateTimeOffset? fechaLimite)> subsecciones)>();
             foreach (var s in sesiones)
             {
                 var subs = await _repo.GetSubseccionesPorSesionAsync(s.id);
@@ -118,7 +118,7 @@ namespace Campus_Virtul_GRLL.Controllers
             ViewBag.ProfesoresAsignados = asignados;
             // Sesiones y subsecciones
             var sesiones = await _repo.GetSesionesPorCursoAsync(id);
-            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>();
+            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden, DateTimeOffset? fechaLimite)> subsecciones)>();
             foreach (var s in sesiones)
             {
                 var subs = await _repo.GetSubseccionesPorSesionAsync(s.id);
@@ -202,6 +202,11 @@ namespace Campus_Virtul_GRLL.Controllers
             {
                 var su = await _storage.GetSignedUrlAsync("course-assets", archivoUrl);
                 if (su.ok) archivoSigned = su.signedUrl;
+                // Fallback a URL externa directa si no es un objeto de Storage
+                if (string.IsNullOrWhiteSpace(archivoSigned) && (archivoUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || archivoUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                {
+                    archivoSigned = archivoUrl;
+                }
             }
             string? videoSigned = null;
             if (!string.IsNullOrWhiteSpace(videoUrl))

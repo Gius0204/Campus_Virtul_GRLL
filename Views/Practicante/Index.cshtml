@@ -1,0 +1,34 @@
+@model IEnumerable<Campus_Virtul_GRLL.Models.Modulo>
+@{
+    ViewData["Title"] = "Catálogo de Cursos";
+    var pendientes = new HashSet<int>();
+}
+
+<h2>Catálogo de Cursos</h2>
+<div class="row">
+    @foreach (var curso in Model)
+    {
+        var isPendiente = false;
+        <div class="col-md-4">
+            <div class="card mb-3 @(isPendiente ? "opacity-50" : "")">
+                <div class="card-body">
+                    <h5 class="card-title">@curso.Titulo</h5>
+                    <p class="card-text">@curso.Descripcion</p>
+                    <p><strong>Estado:</strong> @curso.Estado</p>
+                    <a class="btn btn-primary" href="@Url.Action("Detalle", "Practicante", new { id = curso.IdModulo })">Ver Detalle</a>
+                    @if (!isPendiente)
+                    {
+                        <form method="post" asp-action="SolicitarInscripcion" asp-controller="Practicante" asp-route-moduloId="@curso.IdModulo" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-outline-success ms-2">Solicitar Inscripción</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <span class="badge bg-warning text-dark ms-2">Solicitud pendiente</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}</div>
