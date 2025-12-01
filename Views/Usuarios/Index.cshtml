@@ -1,11 +1,11 @@
-@model List<Campus_Virtul_GRLL.Models.Usuario>
+@model List<Campus_Virtul_GRLL.Models.DbUsuarioViewModel>
 @{
     ViewData["Title"] = "Usuarios";
     Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
 }
 <div class="container-fluid">
     <h1 class="page-title mb-3">Usuarios</h1>
-    <p class="text-muted">Listado de usuarios registrados en el sistema.</p>
+    <p class="text-muted">Listado de usuarios registrados (datos en Supabase).</p>
 
     @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
     @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
@@ -15,9 +15,7 @@
             <table class="table table-sm align-middle">
                 <thead>
                     <tr>
-                        <th>DNI</th>
-                        <th>Apellidos</th>
-                        <th>Nombres</th>
+                        <th>Nombre</th>
                         <th>Correo</th>
                         <th>Rol</th>
                         <th>Cambiar Rol</th>
@@ -29,25 +27,23 @@
                 @foreach (var u in Model)
                 {
                     <tr>
-                        <td>@u.DNI</td>
-                        <td>@u.Apellidos</td>
-                        <td>@u.Nombres</td>
-                        <td>@u.CorreoElectronico</td>
-                        <td>@(u.Rol != null ? u.Rol.NombreRol : "-")</td>
+                        <td>@u.Nombre</td>
+                        <td>@u.Correo</td>
+                        <td>@u.RolNombre</td>
                         <td>
                             <form asp-action="CambiarRol" asp-controller="Usuarios" method="post" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()
-                                <input type="hidden" name="idUsuario" value="@u.IdUsuario" />
+                                <input type="hidden" name="idUsuario" value="@u.Id" />
                                 <select name="idRol" class="form-select form-select-sm" style="min-width: 160px;">
-                                    @foreach (var rol in (IEnumerable<Campus_Virtul_GRLL.Models.Rol>)ViewBag.Roles)
+                                    @foreach (var rol in (IEnumerable<(System.Guid id, string nombre)>)ViewBag.Roles)
                                     {
-                                        if (u.IdRol == rol.IdRol)
+                                        if (u.RolId == rol.id)
                                         {
-                                            <option value="@rol.IdRol" selected>@rol.NombreRol</option>
+                                            <option value="@rol.id" selected>@rol.nombre</option>
                                         }
                                         else
                                         {
-                                            <option value="@rol.IdRol">@rol.NombreRol</option>
+                                            <option value="@rol.id">@rol.nombre</option>
                                         }
                                     }
                                 </select>
@@ -55,13 +51,18 @@
                             </form>
                         </td>
                         <td>
-                            @(u.Estado ? "Activo" : "Inactivo")
+                            @(u.Activo ? "Activo" : "Inactivo")
                         </td>
                         <td>
                             <form asp-action="ToggleEstado" asp-controller="Usuarios" method="post" style="display:inline;">
                                 @Html.AntiForgeryToken()
-                                <input type="hidden" name="idUsuario" value="@u.IdUsuario" />
-                                <button type="submit" class="btn btn-outline-secondary btn-sm">@(u.Estado ? "Desactivar" : "Activar")</button>
+                                <input type="hidden" name="idUsuario" value="@u.Id" />
+                                <button type="submit" class="btn btn-outline-secondary btn-sm">@(u.Activo ? "Desactivar" : "Activar")</button>
+                            </form>
+                            <form asp-action="Eliminar" asp-controller="Usuarios" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar usuario definitivamente?');">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idUsuario" value="@u.Id" />
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
                             </form>
                         </td>
                     </tr>

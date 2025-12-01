@@ -1,12 +1,16 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Campus_Virtul_GRLL.Services;
+using Npgsql;
+using Campus_Virtul_GRLL.Helpers;
+using DotEnv.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================
 // 1. REGISTRAR ALMACÉN EN MEMORIA (Sin BD)
 // ============================================
-builder.Services.AddSingleton<InMemoryDataStore>();
+builder.Services.AddSingleton<InMemoryDataStore>(); // Se dejará mientras migras lógica a Supabase
+builder.Services.AddSingleton<SupabaseRepository>();
 
 // ============================================
 // 2. CONFIGURAR AUTENTICACI�N CON COOKIES
@@ -29,7 +33,49 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 // ============================================
 builder.Services.AddControllersWithViews();
 
+// Cargar variables desde .env si existe
+try { new EnvLoader().Load(); } catch { /* Ignorar si no existe */ }
+
 var app = builder.Build();
+
+// ============================================
+// Prueba de conexión a Supabase Postgres
+// ============================================
+try
+{
+    var dbHost = Environment.GetEnvironmentVariable("SUPABASE_DB_HOST");
+    var dbName = Environment.GetEnvironmentVariable("SUPABASE_DB_NAME") ?? "postgres";
+    var dbUser = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres";
+    var dbPassword = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD");
+
+    if (!string.IsNullOrWhiteSpace(dbHost) && !string.IsNullOrWhiteSpace(dbPassword))
+    {
+        var csb = new NpgsqlConnectionStringBuilder
+        {
+            Host = dbHost,
+            Database = dbName,
+            Username = dbUser,
+            Password = dbPassword,
+            SslMode = SslMode.Require,
+            TrustServerCertificate = true
+        };
+
+        using var conn = new NpgsqlConnection(csb.ConnectionString);
+        conn.Open();
+        using var cmd = new NpgsqlCommand("select 1", conn);
+        var result = cmd.ExecuteScalar();
+        app.Logger.LogInformation("Conexión a Supabase Postgres verificada (select 1 -> {Result}).", result);
+        conn.Close();
+    }
+    else
+    {
+        app.Logger.LogWarning("SUPABASE_DB_* no configuradas, se omite prueba de conexión a Postgres.");
+    }
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Fallo la prueba de conexión a Supabase Postgres.");
+}
 
 // ============================================
 // 4. CONFIGURAR PIPELINE HTTP
@@ -47,6 +93,24 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Inicializar repositorio Supabase (crear usuario demo si falta)
+try
+{
+    using var scope = app.Services.CreateScope();
+    var repo = scope.ServiceProvider.GetRequiredService<SupabaseRepository>();
+    repo.InitializeAsync().GetAwaiter().GetResult();
+    var rolesCount = repo.GetRolesCountAsync().GetAwaiter().GetResult();
+    app.Logger.LogInformation("Roles en Supabase: {Count}", rolesCount);
+
+    // Debug opcional: imprimir hash de 'admin123' si se define variable OUTPUT_ADMIN123_HASH=1
+    var hashTmp = PasswordHelper.Hash("admin123");
+    app.Logger.LogInformation("Hash bcrypt para 'admin123': {Hash}", hashTmp);
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Error inicializando repositorio Supabase.");
+}
 
 // ============================================
 // 5. CONFIGURAR RUTAS

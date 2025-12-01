@@ -10,67 +10,80 @@ namespace Campus_Virtul_GRLL.Controllers
     [Authorize]
     public class CursosController : Controller
     {
-        private readonly InMemoryDataStore _store;
+        private readonly SupabaseRepository _repo;
         private readonly ILogger<CursosController> _logger;
 
-        public CursosController(InMemoryDataStore store, ILogger<CursosController> logger)
+        public CursosController(SupabaseRepository repo, ILogger<CursosController> logger)
         {
-            _store = store;
+            _repo = repo;
             _logger = logger;
         }
 
         // Catálogo general
         [AllowAnonymous]
         [HttpGet]
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            var cursos = _store.Cursos.Values.ToList();
-            return View(cursos);
+            var cursos = await _repo.GetCursosAsync();
+            // Proyectar a un modelo simple para la vista existente si fuese necesario
+            ViewBag.Cursos = cursos;
+            return View();
         }
 
         // Mis cursos (Profesor o Practicante)
         [Authorize(Roles = "Administrador,Profesor,Practicante")]
         [HttpGet]
-        public IActionResult MisCursos()
+        public async Task<IActionResult> MisCursos()
         {
-            var userId = User.GetUserId();
             var rol = User.GetUserRole();
-            if (rol == "Profesor")
+            var userGuid = User.GetUserIdGuid();
+            if (rol == "Profesor" && userGuid.HasValue)
             {
-                var propios = _store.Cursos.Values.Where(c => c.IdProfesor == userId).ToList();
-                return View("MisCursos", propios);
+                var propios = await _repo.GetCursosPorProfesorAsync(userGuid.Value);
+                ViewBag.Cursos = propios;
+                return View("MisCursos");
             }
             if (rol == "Practicante")
             {
-                var aprobadas = _store.Inscripciones.Values.Where(i => i.IdUsuario == userId && i.Estado == EstadoInscripcion.Aprobada).Select(i => i.IdCurso).ToHashSet();
-                var cursos = _store.Cursos.Values.Where(c => aprobadas.Contains(c.IdCurso)).ToList();
-                return View("MisCursos", cursos);
+                // TODO: filtrar por inscripciones aprobadas cuando se migre esa tabla
+                ViewBag.Cursos = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+                return View("MisCursos");
             }
-            return View("MisCursos", new List<Curso>());
+            ViewBag.Cursos = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+            return View("MisCursos");
         }
 
         // Detalle curso
         [HttpGet]
-        public IActionResult Detalle(int id)
+        public async Task<IActionResult> Detalle(Guid id)
         {
-            if (!_store.Cursos.TryGetValue(id, out var curso)) return NotFound();
-            var sesiones = _store.Sesiones.Values.Where(s => s.IdCurso == id).OrderBy(s => s.Orden).ToList();
-            var subSecciones = _store.SubSecciones.Values.Where(ss => sesiones.Select(s => s.IdSesion).Contains(ss.IdSesion)).ToList();
-            ViewBag.Sesiones = sesiones;
-            ViewBag.SubSecciones = subSecciones;
-            ViewBag.PuedeEditar = User.GetUserRole() == "Administrador" || curso.IdProfesor == User.GetUserId();
-            return View(curso);
+            var cursos = await _repo.GetCursosAsync();
+            var curso = cursos.FirstOrDefault(c => c.id == id);
+            if (curso.id == Guid.Empty) return NotFound();
+            ViewBag.Curso = curso;
+            // Puede editar: Admin o Profesor asignado
+            var asignados = await _repo.GetCursoProfesoresAsync(id);
+            bool esProfesorAsignado = User.GetUserRole() == "Profesor" && User.GetUserIdGuid().HasValue && asignados.Any(a => a.profesorId == User.GetUserIdGuid().Value);
+            ViewBag.PuedeEditar = User.GetUserRole() == "Administrador" || esProfesorAsignado;
+            ViewBag.ProfesoresAsignados = asignados;
+            // Profesores activos no asignados
+            var todosUsuarios = await _repo.GetUsuariosAsync();
+            var disponibles = todosUsuarios
+                .Where(u => u.activo && string.Equals(u.rolNombre, "Profesor", StringComparison.OrdinalIgnoreCase) && !asignados.Any(a => a.profesorId == u.id))
+                .Select(u => (u.id, u.nombres, u.correo))
+                .ToList();
+            ViewBag.ProfesoresDisponibles = disponibles;
+            return View();
         }
 
         // Solicitar inscripción (Practicante)
         [Authorize(Roles = "Practicante")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SolicitarInscripcion(int idCurso)
+        public IActionResult SolicitarInscripcion(Guid idCurso)
         {
-            if (!_store.Cursos.ContainsKey(idCurso)) return NotFound();
-            var ins = _store.SolicitarInscripcion(idCurso, User.GetUserId());
-            TempData["Mensaje"] = ins.Estado == EstadoInscripcion.Pendiente ? "Solicitud enviada" : "Ya existe una solicitud";
+            // TODO: implementar inscripciones en Supabase
+            TempData["Mensaje"] = "Solicitud enviada";
             return RedirectToAction("Detalle", new { id = idCurso });
         }
 
@@ -78,17 +91,59 @@ namespace Campus_Virtul_GRLL.Controllers
         [Authorize(Roles = "Profesor,Administrador")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Publicar(int idCurso)
+        public async Task<IActionResult> Publicar(Guid idCurso)
         {
-            if (!_store.Cursos.TryGetValue(idCurso, out var curso)) return NotFound();
-            if (User.GetUserRole() == "Profesor" && curso.IdProfesor != User.GetUserId())
-            {
-                return Forbid();
-            }
-            curso.Estado = EstadoCurso.Publicado;
-            curso.FechaPublicacion = DateTime.Now;
+            await _repo.UpdateCursoEstadoAsync(idCurso, "publicado");
             TempData["Mensaje"] = "Curso publicado";
             return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles = "Profesor,Administrador")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Borrador(Guid idCurso)
+        {
+            await _repo.UpdateCursoEstadoAsync(idCurso, "borrador");
+            TempData["Mensaje"] = "Curso marcado como borrador";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AsignarProfesor(Guid idCurso, Guid profesorId)
+        {
+            await _repo.AssignProfesorACursoAsync(idCurso, profesorId);
+            TempData["Mensaje"] = "Profesor asignado";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RetirarProfesor(Guid idCurso, Guid profesorId)
+        {
+            await _repo.RemoveProfesorDeCursoAsync(idCurso, profesorId);
+            TempData["Mensaje"] = "Profesor retirado";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        // Crear curso desde catálogo (modal)
+        [Authorize(Roles="Administrador")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearDesdeCatalogo(string titulo, string? descripcion, string estado)
+        {
+            if (string.IsNullOrWhiteSpace(titulo))
+            {
+                TempData["Error"] = "El título es obligatorio";
+                return RedirectToAction("Index");
+            }
+            var estadoVal = string.IsNullOrWhiteSpace(estado) ? "borrador" : estado.Trim().ToLower();
+            if (estadoVal != "borrador" && estadoVal != "publicado") estadoVal = "borrador";
+            await _repo.CreateCursoAsync(titulo.Trim(), string.IsNullOrWhiteSpace(descripcion)? null : descripcion.Trim(), estadoVal);
+            TempData["Mensaje"] = "Curso creado";
+            return RedirectToAction("Index");
         }
     }
 }

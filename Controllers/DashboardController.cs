@@ -19,7 +19,7 @@ namespace Campus_Virtul_GRLL.Controllers
         /// Dashboard principal 
         public IActionResult Index()
         {
-            var userId = User.GetUserId();
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "-";
             var userName = User.GetUserName();
             var userRole = User.GetUserRole();
 

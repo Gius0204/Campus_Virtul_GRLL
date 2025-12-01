@@ -3,36 +3,141 @@ using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
 using Microsoft.AspNetCore.Mvc;
 using System;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
     [Authorize(Roles = "Administrador")]
     public class AdministradorController : Controller
     {
-        private readonly InMemoryDataStore _store;
+        private readonly SupabaseRepository _repo;
 
-        public AdministradorController(InMemoryDataStore store)
+        public AdministradorController(SupabaseRepository repo)
         {
-            _store = store;
+            _repo = repo;
         }
 
         [HttpGet]
-        public IActionResult PanelAdministrador()
+        public async Task<IActionResult> PanelAdministrador(string? vista)
         {
+            // Datos del usuario autenticado
+            var correo = User?.Claims?.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (!string.IsNullOrWhiteSpace(correo))
+            {
+                var u = await _repo.GetUserByEmailAsync(correo);
+                if (u.HasValue)
+                {
+                    ViewBag.Nombres = u.Value.nombres;
+                    ViewBag.Apellidos = u.Value.apellidos;
+                    ViewBag.DNI = u.Value.dni;
+                    ViewBag.Telefono = u.Value.telefono;
+                    // Resolver nombre de área si tiene areaId
+                    if (u.Value.areaId.HasValue)
+                    {
+                        var areas = await _repo.GetAreasAsync();
+                        var areaNombre = areas.FirstOrDefault(a => a.id == u.Value.areaId.Value).nombre;
+                        ViewBag.Area = areaNombre;
+                    }
+                }
+            }
+
+            var counts = await _repo.GetDashboardCountsAsync();
+            ViewBag.TotalCursos = counts.cursos;
+            ViewBag.TotalProfesores = counts.profesores;
+            ViewBag.TotalPracticantes = counts.practicantes;
+
+            ViewBag.Vista = string.IsNullOrWhiteSpace(vista) ? "cursos" : vista.ToLower();
+            if (ViewBag.Vista == "cursos")
+            {
+                var cursos = await _repo.GetCursosAsync();
+                ViewBag.Cursos = cursos;
+                // Pre-cargar profesores asignados por curso en un diccionario para la vista
+                var dict = new Dictionary<Guid, List<(Guid profesorId, string nombres, string correo)>>();
+                foreach (var c in cursos)
+                {
+                    var asignados = await _repo.GetCursoProfesoresAsync(c.id);
+                    dict[c.id] = asignados;
+                }
+                // Exponer delegado para recuperar lista fácilmente
+                ViewBag.ProfesoresAsignadosPorCurso = new Func<Guid, IEnumerable<(Guid profesorId, string nombres, string correo)>>(cid => dict.ContainsKey(cid) ? dict[cid] : Enumerable.Empty<(Guid, string, string)>());
+            }
+            else
+            {
+                var usuarios = await _repo.GetUsuariosAsync();
+                if (ViewBag.Vista == "profesores")
+                {
+                    var profs = usuarios.Where(u => u.activo && string.Equals(u.rolNombre, "Profesor", StringComparison.OrdinalIgnoreCase)).ToList();
+                    ViewBag.Usuarios = profs;
+                }
+                else if (ViewBag.Vista == "practicantes")
+                {
+                    var prac = usuarios.Where(u => u.activo && string.Equals(u.rolNombre, "Practicante", StringComparison.OrdinalIgnoreCase)).ToList();
+                    ViewBag.Usuarios = prac;
+                }
+                else
+                {
+                    ViewBag.Vista = "cursos";
+                    var cursos = await _repo.GetCursosAsync();
+                    ViewBag.Cursos = cursos;
+                }
+            }
             return View();
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PublicarCurso(Guid id)
+        {
+            await _repo.UpdateCursoEstadoAsync(id, "publicado");
+            TempData["Mensaje"] = "Curso publicado";
+            return RedirectToAction("PanelAdministrador");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> BorradorCurso(Guid id)
+        {
+            await _repo.UpdateCursoEstadoAsync(id, "borrador");
+            TempData["Mensaje"] = "Curso en borrador";
+            return RedirectToAction("PanelAdministrador");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EliminarCurso(Guid id)
+        {
+            await _repo.DeleteCursoAsync(id);
+            TempData["Mensaje"] = "Curso eliminado";
+            return RedirectToAction("PanelAdministrador");
+        }
+
         [HttpGet]
-        public IActionResult PanelSolicitudes()
+        public async Task<IActionResult> PanelSolicitudes()
         {
             try
             {
-                var solicitudes = _store.Solicitudes.Values
-                    .OrderByDescending(s => s.FechaSolicitud)
-                    .ToList();
+                var solicitudesDb = await _repo.GetSolicitudesAsync();
+                ViewBag.SolicitudesRaw = solicitudesDb;
+                // Mapear a un modelo simple para la vista existente o ajustar la vista
+                var lista = solicitudesDb.Select(s => new Solicitud
+                {
+                    IdSolicitud = 0, // la vista usa int; mantenemos 0 y mostramos datos principales
+                    Nombres = string.Empty,
+                    Apellidos = string.Empty,
+                    DNI = string.Empty,
+                    Telefono = string.Empty,
+                    CorreoElectronico = s.correo,
+                    Area = string.Empty,
+                    FechaSolicitud = DateOnly.FromDateTime(s.creadoEn),
+                    Estado = s.estado?.ToLower() switch
+                    {
+                        "aprobada" => EstadoSolicitud.Aprobada,
+                        "rechazada" => EstadoSolicitud.Rechazada,
+                        "en revision" => EstadoSolicitud.EnRevision,
+                        _ => EstadoSolicitud.Enviada
+                    }
+                }).ToList();
 
-                return View(solicitudes);
+                return View(lista);
             }
             catch (Exception ex)
             {
@@ -44,71 +149,58 @@ namespace Campus_Virtul_GRLL.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles="Administrador")]
-        public IActionResult AprobarSolicitud(int id)
+        public async Task<IActionResult> AprobarSolicitud(Guid id, string correo)
         {
             try
             {
-                if (!_store.Solicitudes.TryGetValue(id, out var solicitud))
+                await _repo.UpdateSolicitudEstadoAsync(id, "aprobada");
+                if (!string.IsNullOrWhiteSpace(correo))
                 {
-                    return Json(new { success = false, message = "Solicitud no encontrada." });
+                    await _repo.ActivateUserByCorreoAsync(correo);
+                    // Opcional: establecer una contraseña temporal (enviar por correo en futuro)
+                    var usuarioDb = await _repo.GetUserByEmailAsync(correo);
+                    if (usuarioDb.HasValue)
+                    {
+                        await _repo.UpdateUserPasswordAsync(usuarioDb.Value.id, "Cambio123");
+                    }
                 }
-                _store.AprobarSolicitud(id);
-
-                return Json(new { success = true, message = "Solicitud aprobada correctamente." });
+                TempData["Mensaje"] = "Solicitud aprobada correctamente.";
+                return RedirectToAction("PanelSolicitudes");
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = $"Error: {ex.Message}" });
+                TempData["Error"] = $"Error al aprobar solicitud: {ex.Message}";
+                return RedirectToAction("PanelSolicitudes");
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles="Administrador")]
-        public IActionResult RechazarSolicitud(int id)
+        public async Task<IActionResult> RechazarSolicitud(Guid id, string? correo)
         {
             try
             {
-                if (!_store.Solicitudes.TryGetValue(id, out var solicitud))
+                await _repo.UpdateSolicitudEstadoAsync(id, "rechazada");
+                if (!string.IsNullOrWhiteSpace(correo))
                 {
-                    return Json(new { success = false, message = "Solicitud no encontrada." });
+                    await _repo.DeleteUserByCorreoAsync(correo);
                 }
-                _store.RechazarSolicitud(id);
-
-                return Json(new { success = true, message = "Solicitud rechazada correctamente." });
+                TempData["Mensaje"] = "Solicitud rechazada correctamente.";
+                return RedirectToAction("PanelSolicitudes");
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = $"Error: {ex.Message}" });
+                TempData["Error"] = $"Error al rechazar solicitud: {ex.Message}";
+                return RedirectToAction("PanelSolicitudes");
             }
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        [Authorize(Roles="Administrador")]
-        public IActionResult EliminarSolicitud(int id)
-        {
-            try
-            {
-                if (!_store.Solicitudes.TryGetValue(id, out var solicitud))
-                {
-                    return Json(new { success = false, message = "Solicitud no encontrada." });
-                }
-                _store.Solicitudes.TryRemove(id, out _);
-
-                return Json(new { success = true, message = "Solicitud eliminada correctamente." });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, message = $"Error: {ex.Message}" });
-            }
-        }
         // Crear curso (GET)
         [Authorize(Roles="Administrador")]
         [HttpGet]
         public IActionResult CrearCurso()
         {
-            ViewBag.Profesores = _store.Usuarios.Values.Where(u => u.Rol?.NombreRol == "Profesor").ToList();
             return View();
         }
 
@@ -116,19 +208,16 @@ namespace Campus_Virtul_GRLL.Controllers
         [Authorize(Roles="Administrador")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult CrearCurso(string titulo, string descripcion, int idProfesor)
+        public async Task<IActionResult> CrearCurso(string titulo, string? descripcion, string estado)
         {
             if (string.IsNullOrWhiteSpace(titulo))
             {
                 TempData["Error"] = "El título es obligatorio";
                 return RedirectToAction("CrearCurso");
             }
-            if (!_store.Usuarios.ContainsKey(idProfesor) || _store.Usuarios[idProfesor].Rol?.NombreRol != "Profesor")
-            {
-                TempData["Error"] = "Profesor inválido";
-                return RedirectToAction("CrearCurso");
-            }
-            _store.AddCurso(titulo.Trim(), descripcion?.Trim() ?? string.Empty, _store.Usuarios[idProfesor].IdRol, idProfesor);
+            var estadoVal = string.IsNullOrWhiteSpace(estado) ? "borrador" : estado.Trim().ToLower();
+            if (estadoVal != "borrador" && estadoVal != "publicado") estadoVal = "borrador";
+            await _repo.CreateCursoAsync(titulo.Trim(), string.IsNullOrWhiteSpace(descripcion) ? null : descripcion.Trim(), estadoVal);
             TempData["Mensaje"] = "Curso creado";
             return RedirectToAction("PanelAdministrador");
         }

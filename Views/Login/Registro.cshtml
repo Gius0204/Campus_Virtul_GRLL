@@ -1,0 +1,72 @@
+@model Campus_Virtul_GRLL.Models.Solicitud
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/Img/Curso.png">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/Solicitud.css" asp-append-version="true" />
+    <title>Solicitud</title>
+    </head>
+
+<body>
+    <div class="container">
+        <div class="title">Solicitud</div>
+
+        <form id="formulario" asp-action="Registro" asp-controller="Login" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="user-details">
+                <div class="gender-details">
+                    <input type="radio" name="IdRol" id="dot-1" value="1" />
+                    <input type="radio" name="IdRol" id="dot-2" value="2" />
+                    <span class="gender-title">Tipo de usuario</span>
+                    <div class="category">
+                        <label for="dot-1">
+                            <span class="dot one"></span>
+                            <span class="gender">Colaborador</span>
+                        </label>
+                        <label for="dot-2">
+                            <span class="dot two"></span>
+                            <span class="gender">Practicante</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="input-box">
+                    <span class="details">Nombres</span>
+                    <input type="text" id="nombres" name="NombreCompleto" placeholder="Ingrese sus nombres" maxlength="50" />
+                </div>
+                <div class="input-box">
+                    <span class="details">Apellidos</span>
+                    <input type="text" id="apellidos" name="Apellidos" placeholder="Ingrese sus apellidos" maxlength="50" />
+                </div>
+                <div class="input-box">
+                    <span class="details">DNI</span>
+                    <input type="text" id="dni" name="DNI" placeholder="Ingrese su DNI" maxlength="8" />
+                </div>
+                <div class="input-box">
+                    <span class="details">Telefono</span>
+                    <input type="text" id="telefono" name="Telefono" placeholder="Ingrese su numero telefonico" maxlength="9" pattern="\d{9}" />
+                </div>
+                <div class="input-box">
+                    <span class="details">Correo electronico</span>
+                    <input type="email" id="correElectronico" name="Correo" placeholder="Ingrese su correo electronico" maxlength="100" />
+                </div>
+                <div class="input-box">
+                    <span class="details">Area</span>
+                    <input type="text" id="area" name="Area" placeholder="Ingrese su area" maxlength="50" />
+                </div>
+            </div>
+            <div class="button">
+                <input type="submit" value="Enviar" />
+            </div>
+        </form>
+    </div>
+</body>
+</html>

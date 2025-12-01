@@ -77,7 +77,8 @@
                         <tbody>
                             @if (Model != null && Model.Any())
                             {
-                                @foreach (var solicitud in Model)
+                                var raw = ViewBag.SolicitudesRaw as IEnumerable<(Guid id, string correo, string estado, DateTime creadoEn)>;
+                                foreach (var solicitud in Model)
                                 {
                                     <tr data-id="@solicitud.IdSolicitud">
                                         <td>@solicitud.IdSolicitud</td>
@@ -108,34 +109,18 @@
                                         </td>
                                         <td>
                                             <div class="btn-group-actions">
-                                                <button type="button"
-                                                        class="btn btn-sm btn-info btn-ver"
-                                                        data-id="@solicitud.IdSolicitud"
-                                                        title="Ver detalles">
-                                                    👁️
-                                                </button>
-                                                @if (solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.Enviada ||
-                                                                                        solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.EnRevision)
-                                                {
-                                                    <button type="button"
-                                                            class="btn btn-sm btn-success btn-aprobar"
-                                                            data-id="@solicitud.IdSolicitud"
-                                                            title="Aprobar">
-                                                        ✅
-                                                    </button>
-                                                    <button type="button"
-                                                            class="btn btn-sm btn-warning btn-rechazar"
-                                                            data-id="@solicitud.IdSolicitud"
-                                                            title="Rechazar">
-                                                        ❌
-                                                    </button>
-                                                }
-                                                <button type="button"
-                                                        class="btn btn-sm btn-danger btn-eliminar"
-                                                        data-id="@solicitud.IdSolicitud"
-                                                        title="Eliminar">
-                                                    🗑️
-                                                </button>
+                                                <form asp-action="AprobarSolicitud" asp-controller="Administrador" method="post" style="display:inline-block;">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@(raw?.FirstOrDefault(r => r.correo == solicitud.CorreoElectronico).id ?? Guid.Empty)" />
+                                                    <input type="hidden" name="correo" value="@solicitud.CorreoElectronico" />
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Aprobar" @(solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.Aprobada ? "disabled" : null)>✅</button>
+                                                </form>
+                                                <form asp-action="RechazarSolicitud" asp-controller="Administrador" method="post" style="display:inline-block;">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@(raw?.FirstOrDefault(r => r.correo == solicitud.CorreoElectronico).id ?? Guid.Empty)" />
+                                                    <input type="hidden" name="correo" value="@solicitud.CorreoElectronico" />
+                                                    <button type="submit" class="btn btn-sm btn-warning" title="Rechazar" @(solicitud.Estado == Campus_Virtul_GRLL.Models.EstadoSolicitud.Rechazada ? "disabled" : null)>❌</button>
+                                                </form>
                                             </div>
                                         </td>
                                     </tr>

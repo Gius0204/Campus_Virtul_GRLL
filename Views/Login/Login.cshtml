@@ -30,8 +30,8 @@
 
             <div class="user-details">
                 <div class="input-box">
-                    <span class="details">DNI</span>
-                    <input type="text" id="dni" name="DNI" placeholder="Ingrese su DNI" maxlength="8" />
+                    <span class="details">Correo</span>
+                    <input type="email" id="correo" name="DNI" placeholder="Ingrese su correo" />
                 </div>
                 <div class="input-box">
                     <span class="details">Contraseña</span>
@@ -44,7 +44,10 @@
                 </div>
             </div>
 
-            <a href="#" class="forgot-password-link" id="forgotPasswordLink">¿Olvidó su contraseña?</a>
+            <div class="d-flex justify-content-between align-items-center" style="margin-top:10px;">
+                <a href="#" class="forgot-password-link" id="forgotPasswordLink">¿Olvidó su contraseña?</a>
+                <a asp-action="Solicitud" asp-controller="Solicitud" class="forgot-password-link">Registrarme</a>
+            </div>
 
             <div class="button">
                 <input type="submit" value="Iniciar Sesión" />

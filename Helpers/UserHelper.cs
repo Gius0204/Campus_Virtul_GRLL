@@ -9,11 +9,19 @@ namespace Campus_Virtul_GRLL.Helpers
         // INFORMACIÓN BÁSICA DEL USUARIO
         // ============================================
 
-        /// Obtiene el ID del usuario autenticado
+        /// Obtiene el ID del usuario autenticado como entero (compatibilidad con módulos antiguos)
         public static int GetUserId(this ClaimsPrincipal user)
         {
             var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return int.TryParse(userId, out var id) ? id : 0;
+        }
+
+        /// Obtiene el ID del usuario autenticado como Guid (nuevo backend Supabase)
+        public static Guid? GetUserIdGuid(this ClaimsPrincipal user)
+        {
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (Guid.TryParse(userId, out var guid)) return guid;
+            return null;
         }
 
         /// Obtiene el nombre completo del usuario

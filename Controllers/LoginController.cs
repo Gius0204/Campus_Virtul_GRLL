@@ -1,5 +1,6 @@
 ﻿using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
+using Campus_Virtul_GRLL.Helpers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -10,12 +11,12 @@ namespace Campus_Virtul_GRLL.Controllers
 {
     public class LoginController : Controller
     {
-        private readonly InMemoryDataStore _store;
+        private readonly SupabaseRepository _repo;
         private readonly ILogger<LoginController> _logger;
 
-        public LoginController(InMemoryDataStore store, ILogger<LoginController> logger)
+        public LoginController(SupabaseRepository repo, ILogger<LoginController> logger)
         {
-            _store = store;
+            _repo = repo;
             _logger = logger;
         }
 
@@ -24,6 +25,116 @@ namespace Campus_Virtul_GRLL.Controllers
         public IActionResult Index()
         {
             return View("Login");
+        }
+
+        /// Mostrar formulario de registro (solicitud de cuenta)
+        [HttpGet]
+        public IActionResult Registro()
+        {
+            return View();
+        }
+
+        /// Procesar solicitud de registro para aprobación de admin
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Registro(string NombreCompleto, string Correo, int? IdRol, string? Apellidos, string? DNI, string? Telefono, string? Area, string? Contrasena, string? ConfirmarContrasena)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(NombreCompleto) || string.IsNullOrWhiteSpace(Correo))
+                {
+                    TempData["Error"] = "Complete nombre y correo.";
+                    return View();
+                }
+                Correo = Correo.Trim().ToLower();
+                if (!Correo.Contains("@") || !Correo.Contains("."))
+                {
+                    TempData["Error"] = "Correo inválido.";
+                    return View();
+                }
+
+                // Validar contraseñas
+                if (string.IsNullOrWhiteSpace(Contrasena) || string.IsNullOrWhiteSpace(ConfirmarContrasena))
+                {
+                    TempData["Error"] = "Ingrese y confirme su contraseña.";
+                    return View();
+                }
+                if (Contrasena.Trim().Length < 6)
+                {
+                    TempData["Error"] = "La contraseña debe tener al menos 6 caracteres.";
+                    return View();
+                }
+                if (Contrasena.Trim() != ConfirmarContrasena.Trim())
+                {
+                    TempData["Error"] = "Las contraseñas no coinciden.";
+                    return View();
+                }
+
+                // Si ya existe usuario, informar
+                var existente = await _repo.GetUserByEmailAsync(Correo);
+                if (existente != null)
+                {
+                    TempData["Error"] = "Este correo ya está registrado.";
+                    return View();
+                }
+
+                // Crear usuario inactivo en 'usuarios' con password hash, para que al aprobar solo activemos
+                try
+                {
+                    // Resolver rol
+                    var roles = await _repo.GetRolesAsync();
+                    Guid rolId = roles.FirstOrDefault(r =>
+                        (IdRol == 1 && r.nombre.Equals("Colaborador", StringComparison.OrdinalIgnoreCase)) ||
+                        (IdRol == 2 && r.nombre.Equals("Practicante", StringComparison.OrdinalIgnoreCase))
+                    ).id;
+                    if (rolId == Guid.Empty)
+                    {
+                        var rolUsuario = roles.FirstOrDefault(r => r.nombre.Equals("Usuario", StringComparison.OrdinalIgnoreCase));
+                        rolId = rolUsuario.id != Guid.Empty ? rolUsuario.id : roles.First().id;
+                    }
+
+                    await _repo.CreateUserAsync(NombreCompleto.Trim(), Correo, rolId, activo: false, plainPassword: Contrasena.Trim());
+                }
+                catch
+                {
+                    // Si falla creación de usuario, continuamos con solicitud igualmente
+                }
+
+                // Crear solicitud en tabla public.solicitudes (si existe). Si no, solo quedará usuario inactivo esperando aprobación.
+                var creoSolicitud = false;
+                try
+                {
+                    using var conn = new Npgsql.NpgsqlConnection(new Npgsql.NpgsqlConnectionStringBuilder
+                    {
+                        Host = Environment.GetEnvironmentVariable("SUPABASE_DB_HOST"),
+                        Port = int.TryParse(Environment.GetEnvironmentVariable("SUPABASE_DB_PORT"), out var p) ? p : 5432,
+                        Database = Environment.GetEnvironmentVariable("SUPABASE_DB_NAME") ?? "postgres",
+                        Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
+                        Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
+                        SslMode = Npgsql.SslMode.Require,
+                        TrustServerCertificate = true
+                    }.ConnectionString);
+                    await conn.OpenAsync();
+                    using var cmd = new Npgsql.NpgsqlCommand("insert into public.solicitudes (id, nombre, correo, estado, creado_en) values (gen_random_uuid(), @n, @c, 'pendiente', now())", conn);
+                    cmd.Parameters.AddWithValue("n", NombreCompleto.Trim());
+                    cmd.Parameters.AddWithValue("c", Correo);
+                    await cmd.ExecuteNonQueryAsync();
+                    creoSolicitud = true;
+                }
+                catch
+                {
+                    // Si no existe la tabla, continuamos solo con el usuario inactivo
+                }
+
+                TempData["Mensaje"] = "Solicitud enviada. Un administrador revisará su cuenta.";
+                return RedirectToAction("Index");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al registrar solicitud");
+                TempData["Error"] = "Error al enviar solicitud.";
+                return View();
+            }
         }
 
         /// Procesa el login del usuario
@@ -45,32 +156,32 @@ namespace Campus_Virtul_GRLL.Controllers
                 DNI = DNI.Trim();
                 Contrasena = Contrasena.Trim();
 
-                // Validar formato de DNI
-                if (DNI.Length != 8 || !DNI.All(char.IsDigit))
+                // Nota: ahora usamos correo electrónico en lugar de DNI
+                if (!DNI.Contains("@") || !DNI.Contains("."))
                 {
-                    TempData["Error"] = "El DNI debe contener exactamente 8 dígitos.";
+                    TempData["Error"] = "Ingrese su correo electrónico válido en el campo DNI.";
                     return View("Login");
                 }
 
-                _logger.LogInformation($"Intento de login para DNI: {DNI}");
+                _logger.LogInformation($"Intento de login para correo: {DNI}");
 
                 // ============================================
                 // 2. BUSCAR USUARIO EN LA BASE DE DATOS
                 // ============================================
-                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.DNI == DNI);
+                var usuarioDb = await _repo.GetUserByEmailAsync(DNI.ToLower());
 
                 // Validar que el usuario existe
-                if (usuario == null)
+                if (usuarioDb == null)
                 {
-                    _logger.LogWarning($"Usuario no encontrado - DNI: {DNI}");
+                    _logger.LogWarning($"Usuario no encontrado - correo: {DNI}");
                     TempData["Error"] = "El DNI ingresado no está registrado en el sistema.";
                     return View("Login");
                 }
 
                 // Validar que el usuario esté activo (Estado = 1 o true)
-                if (!usuario.Estado)
+                if (!usuarioDb.Value.activo)
                 {
-                    _logger.LogWarning($"Usuario inactivo - DNI: {DNI}, ID: {usuario.IdUsuario}");
+                    _logger.LogWarning($"Usuario inactivo - correo: {DNI}, ID: {usuarioDb.Value.id}");
                     TempData["Error"] = "Su cuenta está inactiva. Contacte al administrador.";
                     return View("Login");
                 }
@@ -78,24 +189,11 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 // 3. VERIFICAR CONTRASEÑA
                 // ============================================
-                bool contrasenaCorrecta = false;
-
-                // Si es primer inicio, verificar con clave temporal
-                if (usuario.PrimerInicio && Contrasena == usuario.ClaveTemporal)
-                {
-                    contrasenaCorrecta = true;
-                    _logger.LogInformation($"Login con clave temporal - Usuario ID: {usuario.IdUsuario}");
-                }
-                // Si no es primer inicio, verificar con clave permanente
-                else if (!usuario.PrimerInicio && Contrasena == usuario.ClavePermanente)
-                {
-                    contrasenaCorrecta = true;
-                    _logger.LogInformation($"Login con clave permanente - Usuario ID: {usuario.IdUsuario}");
-                }
+                var contrasenaCorrecta = usuarioDb.Value.passwordHash != null && PasswordHelper.Verify(Contrasena, usuarioDb.Value.passwordHash);
 
                 if (!contrasenaCorrecta)
                 {
-                    _logger.LogWarning($"Contraseña incorrecta - DNI: {DNI}");
+                    _logger.LogWarning($"Contraseña incorrecta - correo: {DNI}");
                     TempData["Error"] = "DNI o contraseña incorrectos.";
                     return View("Login");
                 }
@@ -105,17 +203,11 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, usuario.IdUsuario.ToString()),
-                    new Claim(ClaimTypes.Name, $"{usuario.Nombres} {usuario.Apellidos}"),
-                    new Claim(ClaimTypes.Email, usuario.CorreoElectronico),
-                    new Claim(ClaimTypes.Role, usuario.Rol?.NombreRol ?? "Usuario"),
-                    new Claim("DNI", usuario.DNI),
-                    new Claim("RolId", usuario.IdRol.ToString()),
-                    new Claim("Area", usuario.Area),
-                    new Claim("Nombres", usuario.Nombres),
-                    new Claim("Apellidos", usuario.Apellidos),
-                    new Claim("Telefono", usuario.Telefono),
-                    new Claim("PrimerInicio", usuario.PrimerInicio.ToString())
+                    new Claim(ClaimTypes.NameIdentifier, usuarioDb.Value.id.ToString()),
+                    new Claim(ClaimTypes.Name, usuarioDb.Value.nombres),
+                    new Claim(ClaimTypes.Email, usuarioDb.Value.correo ?? ""),
+                    new Claim(ClaimTypes.Role, usuarioDb.Value.rolNombre),
+                    new Claim("RolId", usuarioDb.Value.rolId.ToString())
                 };
 
                 // ============================================
@@ -143,26 +235,18 @@ namespace Campus_Virtul_GRLL.Controllers
                     authProperties
                 );
 
-                _logger.LogInformation($"✅ Usuario autenticado exitosamente - ID: {usuario.IdUsuario}, Nombre: {usuario.Nombres} {usuario.Apellidos}");
+                _logger.LogInformation($"✅ Usuario autenticado exitosamente - ID: {usuarioDb.Value.id}, Nombre: {usuarioDb.Value.nombres}");
 
                 // ============================================
                 // 6. REDIRECCIONAR SEGÚN EL ESTADO DEL USUARIO
                 // ============================================
 
                 // Si es primer inicio, debe cambiar su contraseña
-                if (usuario.PrimerInicio)
-                {
-                    TempData["Mensaje"] = "Bienvenido. Por seguridad, debe cambiar su contraseña temporal.";
-                    _logger.LogInformation($"Redirigiendo a cambio de contraseña - Usuario ID: {usuario.IdUsuario}");
-
-                    ViewBag.NombreUsuario = $"{usuario.Nombres} {usuario.Apellidos}";
-                    ViewBag.EsPrimerInicio = usuario.PrimerInicio;
-                    return View("CambiarContrasena");
-                }
+                // flujo de primer inicio removido; usamos contraseña con hash directamente
 
                 // Login exitoso normal
                 //TempData["Mensaje"] = $"¡Bienvenido {usuario.Nombres}!";
-                _logger.LogInformation($"Redirigiendo al Dashboard - Usuario ID: {usuario.IdUsuario}");
+                _logger.LogInformation($"Redirigiendo al Dashboard - Usuario ID: {usuarioDb.Value.id}");
                 return RedirectToAction("Index", "Dashboard");
             }
             catch (Exception ex)
@@ -204,10 +288,10 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 // 2. BUSCAR USUARIO POR CORREO
                 // ============================================
-                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.CorreoElectronico.ToLower() == CorreoElectronico);
+                var usuarioDb = await _repo.GetUserByEmailAsync(CorreoElectronico);
 
                 // Si el correo NO existe en la base de datos
-                if (usuario == null)
+                if (usuarioDb == null)
                 {
                     _logger.LogWarning($"❌ Correo no encontrado en recuperación: {CorreoElectronico}");
                     TempData["ErrorModal"] = "El correo electrónico no se encuentra registrado en el sistema.";
@@ -215,7 +299,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // Validar que el usuario esté activo
-                if (!usuario.Estado)
+                if (!usuarioDb.Value.activo)
                 {
                     _logger.LogWarning($"Usuario inactivo intenta recuperar contraseña: {CorreoElectronico}");
                     TempData["ErrorModal"] = "Su cuenta está inactiva. Contacte al administrador.";
@@ -227,12 +311,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 var token = Guid.NewGuid().ToString();
                 var fechaExpiracion = DateTime.Now.AddMinutes(15);
-
-                usuario.TokenRecuperacion = token;
-                usuario.FechaExpiracionToken = fechaExpiracion;
-                usuario.FechaActualizacion = DateOnly.FromDateTime(DateTime.Now);
-
-                // Persistencia en memoria (ya almacenado en _store)
+                // Nota: si deseas persistir token en DB, agregamos columnas luego.
 
                 // ============================================
                 // 4. ENVIAR CORREO DE RECUPERACIÓN
@@ -244,7 +323,7 @@ namespace Campus_Virtul_GRLL.Controllers
                     Request.Scheme
                 );
 
-                _logger.LogInformation($"✅ Token de recuperación generado para usuario ID: {usuario.IdUsuario}");
+                _logger.LogInformation($"✅ Token de recuperación generado para usuario ID: {usuarioDb.Value.id}");
                 _logger.LogInformation($"URL de recuperación: {urlRecuperacion}");
 
                 // TODO: Aquí deberías integrar un servicio de correo (SendGrid, SMTP, etc.)
@@ -272,10 +351,8 @@ namespace Campus_Virtul_GRLL.Controllers
         {
             try
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-                var usuario = _store.Usuarios.Values.FirstOrDefault(u => u.IdUsuario == userId);
-
-                if (usuario == null)
+                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
                 {
                     TempData["Error"] = "Usuario no encontrado.";
                     return RedirectToAction("Index", "Login");
@@ -289,8 +366,6 @@ namespace Campus_Virtul_GRLL.Controllers
                     string.IsNullOrWhiteSpace(ConfirmarContrasena))
                 {
                     TempData["Error"] = "Todos los campos son obligatorios.";
-                    ViewBag.NombreUsuario = $"{usuario.Nombres} {usuario.Apellidos}";
-                    ViewBag.EsPrimerInicio = usuario.PrimerInicio;
                     return View("CambiarContrasena");
                 }
 
@@ -298,8 +373,6 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (ContrasenaNueva.Trim() != ConfirmarContrasena.Trim())
                 {
                     TempData["Error"] = "La nueva contraseña y la confirmación no coinciden.";
-                    ViewBag.NombreUsuario = $"{usuario.Nombres} {usuario.Apellidos}";
-                    ViewBag.EsPrimerInicio = usuario.PrimerInicio;
                     return View("CambiarContrasena");
                 }
 
@@ -307,43 +380,26 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (ContrasenaNueva.Trim().Length < 6)
                 {
                     TempData["Error"] = "La nueva contraseña debe tener al menos 6 caracteres.";
-                    ViewBag.NombreUsuario = $"{usuario.Nombres} {usuario.Apellidos}";
-                    ViewBag.EsPrimerInicio = usuario.PrimerInicio;
                     return View("CambiarContrasena");
                 }
 
                 // ============================================
                 // 2. VERIFICAR CONTRASEÑA ACTUAL
                 // ============================================
-                bool contrasenaActualCorrecta = false;
-
-                if (usuario.PrimerInicio && ContrasenaActual.Trim() == usuario.ClaveTemporal)
-                {
-                    contrasenaActualCorrecta = true;
-                }
-                else if (!usuario.PrimerInicio && ContrasenaActual.Trim() == usuario.ClavePermanente)
-                {
-                    contrasenaActualCorrecta = true;
-                }
+                var usuarioDb = await _repo.GetUserByEmailAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
+                var contrasenaActualCorrecta = usuarioDb != null && usuarioDb.Value.passwordHash != null && PasswordHelper.Verify(ContrasenaActual.Trim(), usuarioDb.Value.passwordHash);
 
                 if (!contrasenaActualCorrecta)
                 {
                     TempData["Error"] = "La contraseña actual es incorrecta.";
                     _logger.LogWarning($"Intento fallido de cambio de contraseña - Usuario ID: {userId}");
-                    ViewBag.NombreUsuario = $"{usuario.Nombres} {usuario.Apellidos}";
-                    ViewBag.EsPrimerInicio = usuario.PrimerInicio;
                     return View("CambiarContrasena");
                 }
 
                 // ============================================
                 // 3. ACTUALIZAR CONTRASEÑA
                 // ============================================
-                usuario.ClavePermanente = ContrasenaNueva.Trim();
-                usuario.PrimerInicio = false;
-                usuario.FechaActualizacion = DateOnly.FromDateTime(DateTime.Now);
-
-                // Persistencia en memoria
-
+                await _repo.UpdateUserPasswordAsync(userId, ContrasenaNueva.Trim());
                 _logger.LogInformation($"✅ Contraseña actualizada exitosamente - Usuario ID: {userId}");
 
                 // ============================================
@@ -351,17 +407,11 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.NameIdentifier, usuario.IdUsuario.ToString()),
-                    new Claim(ClaimTypes.Name, $"{usuario.Nombres} {usuario.Apellidos}"),
-                    new Claim(ClaimTypes.Email, usuario.CorreoElectronico),
-                    new Claim(ClaimTypes.Role, usuario.Rol?.NombreRol ?? "Usuario"),
-                    new Claim("DNI", usuario.DNI),
-                    new Claim("RolId", usuario.IdRol.ToString()),
-                    new Claim("Area", usuario.Area),
-                    new Claim("Nombres", usuario.Nombres),
-                    new Claim("Apellidos", usuario.Apellidos),
-                    new Claim("Telefono", usuario.Telefono),
-                    new Claim("PrimerInicio", "False")
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim(ClaimTypes.Name, usuarioDb.HasValue ? usuarioDb.Value.nombres : "Usuario"),
+                    new Claim(ClaimTypes.Email, usuarioDb.HasValue ? (usuarioDb.Value.correo ?? "") : ""),
+                    new Claim(ClaimTypes.Role, usuarioDb.HasValue ? usuarioDb.Value.rolNombre : "Usuario"),
+                    new Claim("RolId", (usuarioDb.HasValue ? usuarioDb.Value.rolId : Guid.Empty).ToString())
                 };
 
                 var claimsIdentity = new ClaimsIdentity(

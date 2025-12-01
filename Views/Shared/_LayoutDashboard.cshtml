@@ -34,9 +34,9 @@
             </button>
 
             <!-- Perfil de usuario -->
-            <button class="header-icon-btn" aria-label="Perfil de usuario">
+            <a class="header-icon-btn" aria-label="Perfil de usuario" href="@Url.Action("Index","Perfil")" title="Mi Perfil">
                 👤
-            </button>
+            </a>
         </div>
     </header>
 
@@ -70,13 +70,15 @@
                         </a>
                     </li>
                 }
-                @* Mis Cursos visible para todos *@
-                <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
-                    <a href="@Url.Action("MisCursos", "Cursos")">
-                        <span class="icon">🎓</span>
-                        <span>Mis Cursos</span>
-                    </a>
-                </li>
+                @* Mis Cursos visible excepto Administrador *@
+                @if (rol != "Administrador") {
+                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Cursos" && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
+                        <a href="@Url.Action("MisCursos", "Cursos")">
+                            <span class="icon">🎓</span>
+                            <span>Mis Cursos</span>
+                        </a>
+                    </li>
+                }
                 @* Panel de Solicitudes solo Administrador *@
                 @if (rol == "Administrador") {
                     <li class="@(ViewContext.RouteData.Values["action"]?.ToString() == "PanelSolicitudes" && ViewContext.RouteData.Values["controller"]?.ToString() == "Administrador" ? "active" : "")">
@@ -85,12 +87,7 @@
                             <span>Solicitudes</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="@Url.Action("PanelAdministrador", "Administrador")">
-                            <span class="icon">📚</span>
-                            <span>Admin Cursos</span>
-                        </a>
-                    </li>
+                    @* AdminCursos ocultado: Dashboard ya redirige a PanelAdministrador *@
                     <li>
                         <a href="@Url.Action("Index", "Usuarios")">
                             <span class="icon">👤</span>
