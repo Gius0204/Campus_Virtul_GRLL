@@ -101,7 +101,7 @@
                                             </td>
                                             <td>@c.creadoEn.ToString("yyyy-MM-dd")</td>
                                             <td>
-                                                <a class="btn btn-sm btn-info" href="@Url.Action("Detalle","Cursos", new { id = c.id })">Ver</a>
+                                                <a class="btn btn-sm btn-info" href="@Url.Action("DetalleAdministrador","Cursos", new { id = c.id })">Ver</a>
                                                 <form method="post" asp-action="@(c.estado == "publicado" ? "BorradorCurso" : "PublicarCurso")" asp-controller="Administrador" style="display:inline-block;">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="id" value="@c.id" />

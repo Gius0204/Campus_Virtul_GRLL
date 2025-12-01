@@ -4,6 +4,7 @@ using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
 using Campus_Virtul_GRLL.Helpers;
 using System.Linq;
+using Microsoft.AspNetCore.Http;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
@@ -53,9 +54,10 @@ namespace Campus_Virtul_GRLL.Controllers
             return View("MisCursos");
         }
 
-        // Detalle curso
+        // Detalle curso (Administrador)
+        [Authorize(Roles = "Administrador")]
         [HttpGet]
-        public async Task<IActionResult> Detalle(Guid id)
+        public async Task<IActionResult> DetalleAdministrador(Guid id)
         {
             var cursos = await _repo.GetCursosAsync();
             var curso = cursos.FirstOrDefault(c => c.id == id);
@@ -73,7 +75,48 @@ namespace Campus_Virtul_GRLL.Controllers
                 .Select(u => (u.id, u.nombres, u.correo))
                 .ToList();
             ViewBag.ProfesoresDisponibles = disponibles;
-            return View();
+            // Sesiones y subsecciones para pestaña "Contenido del Curso"
+            var sesiones = await _repo.GetSesionesPorCursoAsync(id);
+            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>();
+            foreach (var s in sesiones)
+            {
+                var subs = await _repo.GetSubseccionesPorSesionAsync(s.id);
+                sesionesConSub.Add((s.id, s.titulo, s.orden, subs));
+            }
+            ViewBag.Sesiones = sesionesConSub;
+            // Participantes (profesores + practicantes)
+            var participantes = await _repo.GetParticipantesCursoAsync(id);
+            ViewBag.Participantes = participantes;
+            return View("DetalleAdministrador");
+        }
+
+        // Detalle curso (Profesor)
+        [Authorize(Roles = "Profesor")]
+        [HttpGet]
+        public async Task<IActionResult> DetalleProfesor(Guid id)
+        {
+            var cursos = await _repo.GetCursosPorProfesorAsync(User.GetUserIdGuid()!.Value);
+            var curso = cursos.FirstOrDefault(c => c.id == id);
+            if (curso.id == Guid.Empty) return NotFound();
+            ViewBag.Curso = curso;
+            // Puede editar: solo si el profesor está asignado
+            var asignados = await _repo.GetCursoProfesoresAsync(id);
+            bool esProfesorAsignado = User.GetUserIdGuid().HasValue && asignados.Any(a => a.profesorId == User.GetUserIdGuid().Value);
+            ViewBag.PuedeEditar = esProfesorAsignado;
+            ViewBag.ProfesoresAsignados = asignados;
+            // Sesiones y subsecciones
+            var sesiones = await _repo.GetSesionesPorCursoAsync(id);
+            var sesionesConSub = new List<(Guid sesionId, string titulo, int orden, List<(Guid id, string titulo, string tipo, string estado, int orden)> subsecciones)>();
+            foreach (var s in sesiones)
+            {
+                var subs = await _repo.GetSubseccionesPorSesionAsync(s.id);
+                sesionesConSub.Add((s.id, s.titulo, s.orden, subs));
+            }
+            ViewBag.Sesiones = sesionesConSub;
+            // Participantes (profesores + practicantes)
+            var participantes = await _repo.GetParticipantesCursoAsync(id);
+            ViewBag.Participantes = participantes;
+            return View("DetalleProfesor");
         }
 
         // Solicitar inscripción (Practicante)
@@ -125,6 +168,49 @@ namespace Campus_Virtul_GRLL.Controllers
         {
             await _repo.RemoveProfesorDeCursoAsync(idCurso, profesorId);
             TempData["Mensaje"] = "Profesor retirado";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearSesion(Guid idCurso, string titulo, int? orden)
+        {
+            if (string.IsNullOrWhiteSpace(titulo))
+            {
+                TempData["Error"] = "El título de la sesión es obligatorio";
+                return RedirectToAction("Detalle", new { id = idCurso });
+            }
+            await _repo.CreateSesionAsync(idCurso, titulo.Trim(), orden);
+            TempData["Mensaje"] = "Sesión creada";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearSubseccion(Guid idCurso, Guid sesionId, string titulo, string tipo, string? textoContenido, IFormFile? archivo, IFormFile? video, int? maxPuntaje)
+        {
+            if (string.IsNullOrWhiteSpace(titulo))
+            {
+                TempData["Error"] = "El título de la subsección es obligatorio";
+                return RedirectToAction("Detalle", new { id = idCurso });
+            }
+            // Placeholder almacenamiento (no guarda físicamente el archivo)
+            string? archivoUrl = archivo != null ? $"/uploads/{Guid.NewGuid()}_{archivo.FileName}" : null;
+            string? videoUrl = video != null ? $"/videos/{Guid.NewGuid()}_{video.FileName}" : null;
+            await _repo.CreateSubseccionAsync(sesionId, titulo.Trim(), tipo?.ToLower() ?? "contenido", textoContenido, archivoUrl, videoUrl, maxPuntaje, "borrador");
+            TempData["Mensaje"] = "Subsección creada (borrador)";
+            return RedirectToAction("Detalle", new { id = idCurso });
+        }
+
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CambiarEstadoSubseccion(Guid idCurso, Guid subseccionId, string nuevoEstado)
+        {
+            await _repo.UpdateSubseccionEstadoAsync(subseccionId, nuevoEstado);
+            TempData["Mensaje"] = "Estado de subsección actualizado";
             return RedirectToAction("Detalle", new { id = idCurso });
         }
 

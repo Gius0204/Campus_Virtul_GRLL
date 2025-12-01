@@ -29,7 +29,7 @@
                         <h5>@c.titulo</h5>
                         <p class="text-muted">@(string.IsNullOrWhiteSpace(c.descripcion)? "Sin descripción" : c.descripcion)</p>
                         <p><strong>Estado:</strong> @c.estado</p>
-                        <a class="btn btn-sm btn-primary" href="@Url.Action("Detalle","Cursos", new { id = c.id })">Ver Detalle</a>
+                        <a class="btn btn-sm btn-primary" href="@Url.Action("DetalleAdministrador","Cursos", new { id = c.id })">Ver Detalle</a>
                     </div>
                 </div>
             }

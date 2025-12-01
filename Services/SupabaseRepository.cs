@@ -500,5 +500,125 @@ namespace Campus_Virtul_GRLL.Services
             var r = await cmd.ExecuteScalarAsync();
             return r != null;
         }
+
+        // ----- Sesiones y Subsecciones -----
+        public async Task<List<(Guid id, string titulo, int orden)>> GetSesionesPorCursoAsync(Guid cursoId)
+        {
+            var list = new List<(Guid, string, int)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("select id, titulo, orden from public.sesiones where curso_id=@cid order by orden, creado_en", conn);
+            cmd.Parameters.AddWithValue("cid", cursoId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2)));
+            }
+            return list;
+        }
+
+        public async Task<Guid> CreateSesionAsync(Guid cursoId, string titulo, int? orden = null)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("insert into public.sesiones (id, curso_id, titulo, orden) values (gen_random_uuid(), @c, @t, coalesce(@o,1)) returning id", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("t", titulo);
+            cmd.Parameters.AddWithValue("o", (object?)orden ?? DBNull.Value);
+            var idObj = await cmd.ExecuteScalarAsync();
+            return (Guid)idObj!;
+        }
+
+        public async Task<List<(Guid id, string titulo, string tipo, string estado, int orden)>> GetSubseccionesPorSesionAsync(Guid sesionId)
+        {
+            var list = new List<(Guid, string, string, string, int)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("select id, titulo, tipo, estado, orden from public.subsecciones where sesion_id=@sid order by orden, creado_en", conn);
+            cmd.Parameters.AddWithValue("sid", sesionId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4)));
+            }
+            return list;
+        }
+
+        public async Task<Guid> CreateSubseccionAsync(Guid sesionId, string titulo, string tipo, string? textoContenido, string? archivoUrl, string? videoUrl, int? maxPuntaje, string estado = "borrador")
+        {
+            if (string.IsNullOrWhiteSpace(tipo) || !(new[]{"contenido","video","tarea"}.Contains(tipo))) tipo = "contenido";
+            if (string.IsNullOrWhiteSpace(estado) || !(new[]{"borrador","publicado"}.Contains(estado))) estado = "borrador";
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"insert into public.subsecciones (id, sesion_id, titulo, tipo, texto_contenido, archivo_url, video_url, max_puntaje, estado)
+                                               values (gen_random_uuid(), @s, @t, @tp, @txt, @aurl, @vurl, @mp, @est) returning id", conn);
+            cmd.Parameters.AddWithValue("s", sesionId);
+            cmd.Parameters.AddWithValue("t", titulo);
+            cmd.Parameters.AddWithValue("tp", tipo);
+            cmd.Parameters.AddWithValue("txt", (object?)textoContenido ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("aurl", (object?)archivoUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("vurl", (object?)videoUrl ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("mp", (object?)maxPuntaje ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("est", estado);
+            var idObj = await cmd.ExecuteScalarAsync();
+            return (Guid)idObj!;
+        }
+
+        public async Task UpdateSubseccionEstadoAsync(Guid subseccionId, string nuevoEstado)
+        {
+            if (string.IsNullOrWhiteSpace(nuevoEstado) || !(new[]{"borrador","publicado"}.Contains(nuevoEstado))) nuevoEstado = "borrador";
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("update public.subsecciones set estado=@e where id=@id", conn);
+            cmd.Parameters.AddWithValue("e", nuevoEstado);
+            cmd.Parameters.AddWithValue("id", subseccionId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // ----- Participantes (profesores y practicantes) -----
+        public async Task<List<(Guid id, string nombres, string correo, string rol)>> GetParticipantesCursoAsync(Guid cursoId)
+        {
+            var list = new List<(Guid,string,string,string)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            // Profesores
+            using (var cmdProf = new NpgsqlCommand(@"select u.id, u.nombres, u.correo, 'Profesor' as rol
+                                                     from public.curso_profesores cp
+                                                     join public.usuarios u on u.id = cp.profesor_id
+                                                     where cp.curso_id=@cid", conn))
+            {
+                cmdProf.Parameters.AddWithValue("cid", cursoId);
+                using var r = await cmdProf.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    list.Add((r.GetGuid(0), r.GetString(1), r.IsDBNull(2)?"":r.GetString(2), r.GetString(3)));
+                }
+            }
+            // Practicantes
+            using (var cmdPract = new NpgsqlCommand(@"select u.id, u.nombres, u.correo, 'Practicante' as rol
+                                                      from public.curso_practicantes cp
+                                                      join public.usuarios u on u.id = cp.practicante_id
+                                                      join public.roles r on r.id = u.rol_id
+                                                      where cp.curso_id=@cid and lower(r.nombre)='practicante'", conn))
+            {
+                cmdPract.Parameters.AddWithValue("cid", cursoId);
+                using var r2 = await cmdPract.ExecuteReaderAsync();
+                while (await r2.ReadAsync())
+                {
+                    list.Add((r2.GetGuid(0), r2.GetString(1), r2.IsDBNull(2)?"":r2.GetString(2), r2.GetString(3)));
+                }
+            }
+            return list;
+        }
+
+        public async Task AssignPracticanteACursoAsync(Guid cursoId, Guid practicanteId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("insert into public.curso_practicantes (curso_id, practicante_id) values (@c,@p) on conflict do nothing", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("p", practicanteId);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 }

@@ -72,16 +72,51 @@ namespace Campus_Virtul_GRLL.Controllers
             var areaProfesor = User.GetUserArea();
             var emailProfesor = User.GetUserEmail();
             var dniProfesor = User.GetUserDNI();
+            var profesorIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-            ViewBag.NombreProfesor = nombreProfesor;
+            ViewBag.Nombres = User.GetNombres();
+            ViewBag.Apellidos = User.GetApellidos();
             ViewBag.Area = areaProfesor;
-            ViewBag.Email = emailProfesor;
             ViewBag.DNI = dniProfesor;
+            ViewBag.Telefono = User.GetUserTelefono();
             ViewBag.Rol = "Profesor";
 
-            ViewBag.MensajeBienvenida = $"Bienvenido, Profesor {User.GetNombres()}";
-
             _logger.LogInformation($"Profesor {nombreProfesor} (Área: {areaProfesor}) accedió a su panel");
+
+            // Cargar cursos asignados al profesor y conteos
+            var repo = new Services.SupabaseRepository();
+            var cursosAsignados = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+            int totalCursos = 0;
+            int totalPracticantes = 0;
+            if (Guid.TryParse(profesorIdStr, out var profesorId))
+            {
+                cursosAsignados = repo.GetCursosPorProfesorAsync(profesorId).GetAwaiter().GetResult();
+                totalCursos = cursosAsignados.Count;
+
+                // Intentar contar practicantes inscritos a los cursos del profesor
+                try
+                {
+                    using var conn = (new Services.SupabaseRepository()).GetType().GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(repo, null) as Npgsql.NpgsqlConnection;
+                    conn!.Open();
+                    using var cmd = new Npgsql.NpgsqlCommand(@"select count(*)
+                        from public.inscripciones i
+                        join public.curso_profesores cp on cp.curso_id = i.curso_id
+                        join public.usuarios u on u.id = i.usuario_id
+                        join public.roles r on r.id = u.rol_id
+                        where cp.profesor_id = @pid and lower(r.nombre) = 'practicante'", conn);
+                    cmd.Parameters.AddWithValue("pid", profesorId);
+                    var result = cmd.ExecuteScalar();
+                    totalPracticantes = Convert.ToInt32(result);
+                }
+                catch
+                {
+                    totalPracticantes = 0;
+                }
+            }
+
+            ViewBag.TotalCursos = totalCursos;
+            ViewBag.TotalPracticantes = totalPracticantes;
+            ViewBag.Cursos = cursosAsignados;
 
             return View();
         }

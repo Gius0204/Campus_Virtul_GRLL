@@ -5,35 +5,94 @@
 
 <div class="container-fluid">
     <div class="row mb-4">
-        <div class="col-12">
-            <h1 class="page-title">Panel del Profesor</h1>
-            <p class="text-muted">Gestione sus cursos y contenido.</p>
-            @if (TempData["Mensaje"] != null)
-            {
-                <div class="alert alert-success">@TempData["Mensaje"]</div>
-            }
-            @if (TempData["Error"] != null)
-            {
-                <div class="alert alert-danger">@TempData["Error"]</div>
-            }
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">Información del Usuario</div>
+                <div class="card-body">
+                    <p><strong>Nombres:</strong> @(ViewBag.Nombres ?? User.Identity?.Name)</p>
+                    <p><strong>Apellidos:</strong> @(ViewBag.Apellidos ?? "-")</p>
+                    <p><strong>Rol:</strong> Profesor</p>
+                    <p><strong>Área:</strong> @(ViewBag.Area ?? "-")</p>
+                    <p><strong>DNI:</strong> @(ViewBag.DNI ?? "-")</p>
+                    <p><strong>Teléfono:</strong> @(ViewBag.Telefono ?? "-")</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="content-card">
+                <h5>Gestión de Cursos</h5>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #3498db; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalCursos ?? 0)</h3>
+                            <p>Total Cursos</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #e74c3c; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalPracticantes ?? 0)</h3>
+                            <p>Practicantes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="content-card mb-4">
-        <h5>Acciones rápidas</h5>
-        <hr />
-        <a class="btn btn-primary me-2" href="@Url.Action("Index", "Cursos")">📚 Ver Catálogo</a>
-        <a class="btn btn-secondary me-2" href="@Url.Action("MisCursos", "Cursos")">🎓 Mis Cursos</a>
-    </div>
-
-    <div class="content-card">
-        <h5>Resumen</h5>
-        <hr />
-        <p>Use la sección "Mis Cursos" para agregar sesiones y subsecciones.</p>
-        <ul>
-            <li>Crear Sesiones: formulario en Detalle del Curso.</li>
-            <li>Agregar Contenido / Video / Tarea: botones por sesión.</li>
-            <li>Publicar curso una vez tenga contenido mínimo.</li>
-        </ul>
+    <!-- Listado de cursos asignados -->
+    <div class="row">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5>Listado de registros</h5>
+                    <!-- Profesor: sin botón Nuevo Curso -->
+                </div>
+                <hr>
+                <div class="table-responsive">
+                    @{ var cursos = (ViewBag.Cursos as IEnumerable<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>) ?? Enumerable.Empty<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>(); }
+                    @if (!cursos.Any())
+                    {
+                        <div class="alert alert-info m-2">No tienes cursos asignados aún.</div>
+                    }
+                    else
+                    {
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Descripción</th>
+                                    <th>Estado</th>
+                                    <th>Creado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in cursos)
+                                {
+                                    <tr>
+                                        <td>@c.titulo</td>
+                                        <td>@(string.IsNullOrWhiteSpace(c.descripcion) ? "-" : c.descripcion)</td>
+                                        <td>@c.estado</td>
+                                        <td>@c.creadoEn.ToString("yyyy-MM-dd")</td>
+                                        <td>
+                                            <a class="btn btn-sm btn-info" href="@Url.Action("DetalleProfesor","Cursos", new { id = c.id })">Ver</a>
+                                            <form method="post" asp-action="@(c.estado == "publicado" ? "Borrador" : "Publicar")" asp-controller="Cursos" style="display:inline-block;" class="ms-1">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="idCurso" value="@c.id" />
+                                                <button type="submit" class="btn btn-sm @(c.estado == "publicado" ? "btn-secondary" : "btn-success")">
+                                                    @(c.estado == "publicado" ? "Borrador" : "Publicar")
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
