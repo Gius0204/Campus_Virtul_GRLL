@@ -568,14 +568,14 @@ namespace Campus_Virtul_GRLL.Services
             return list;
         }
 
-        public async Task<Guid> CreateSubseccionAsync(Guid sesionId, string titulo, string tipo, string? textoContenido, string? archivoUrl, string? videoUrl, int? maxPuntaje, string estado = "borrador")
+        public async Task<Guid> CreateSubseccionAsync(Guid sesionId, string titulo, string tipo, string? textoContenido, string? archivoUrl, string? videoUrl, int? maxPuntaje, string estado = "borrador", int? orden = null, DateTimeOffset? fechaLimite = null)
         {
             if (string.IsNullOrWhiteSpace(tipo) || !(new[]{"contenido","video","tarea"}.Contains(tipo))) tipo = "contenido";
             if (string.IsNullOrWhiteSpace(estado) || !(new[]{"borrador","publicado"}.Contains(estado))) estado = "borrador";
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(@"insert into public.subsecciones (id, sesion_id, titulo, tipo, texto_contenido, archivo_url, video_url, max_puntaje, estado)
-                                               values (gen_random_uuid(), @s, @t, @tp, @txt, @aurl, @vurl, @mp, @est) returning id", conn);
+            using var cmd = new NpgsqlCommand(@"insert into public.subsecciones (id, sesion_id, titulo, tipo, texto_contenido, archivo_url, video_url, max_puntaje, estado, orden, fecha_limite)
+                                               values (gen_random_uuid(), @s, @t, @tp, @txt, @aurl, @vurl, @mp, @est, coalesce(@o, 1), @flim) returning id", conn);
             cmd.Parameters.AddWithValue("s", sesionId);
             cmd.Parameters.AddWithValue("t", titulo);
             cmd.Parameters.AddWithValue("tp", tipo);
@@ -584,6 +584,8 @@ namespace Campus_Virtul_GRLL.Services
             cmd.Parameters.AddWithValue("vurl", (object?)videoUrl ?? DBNull.Value);
             cmd.Parameters.AddWithValue("mp", (object?)maxPuntaje ?? DBNull.Value);
             cmd.Parameters.AddWithValue("est", estado);
+            cmd.Parameters.AddWithValue("o", (object?)orden ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("flim", (object?)(fechaLimite?.UtcDateTime) ?? DBNull.Value);
             var idObj = await cmd.ExecuteScalarAsync();
             return (Guid)idObj!;
         }
@@ -601,14 +603,15 @@ namespace Campus_Virtul_GRLL.Services
             long? nuevoVideoSizeBytes = null,
             int? nuevoVideoDuracionSegundos = null,
             int? nuevoMaxPuntaje = null,
-            int? nuevoOrden = null)
+            int? nuevoOrden = null,
+            DateTimeOffset? nuevaFechaLimite = null)
         {
             // Validar tipo si se provee
             if (nuevoTipo != null && !(new[]{"contenido","video","tarea"}.Contains(nuevoTipo))) nuevoTipo = null;
 
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(@"update public.subsecciones set
+                        using var cmd = new NpgsqlCommand(@"update public.subsecciones set
                                                 titulo = coalesce(@t, titulo),
                                                 tipo = coalesce(@tp, tipo),
                                                 texto_contenido = coalesce(@txt, texto_contenido),
@@ -621,6 +624,7 @@ namespace Campus_Virtul_GRLL.Services
                                                 video_duracion_segundos = coalesce(@vdur, video_duracion_segundos),
                                                 max_puntaje = coalesce(@mp, max_puntaje),
                                                 orden = coalesce(@o, orden),
+                                                                                                fecha_limite = coalesce(@flim, fecha_limite),
                                                 actualizado_en = now()
                                               where id=@id", conn);
             cmd.Parameters.AddWithValue("t", (object?)nuevoTitulo ?? DBNull.Value);
@@ -635,6 +639,7 @@ namespace Campus_Virtul_GRLL.Services
             cmd.Parameters.AddWithValue("vdur", (object?)nuevoVideoDuracionSegundos ?? DBNull.Value);
             cmd.Parameters.AddWithValue("mp", (object?)nuevoMaxPuntaje ?? DBNull.Value);
             cmd.Parameters.AddWithValue("o", (object?)nuevoOrden ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("flim", (object?)(nuevaFechaLimite?.UtcDateTime) ?? DBNull.Value);
             cmd.Parameters.AddWithValue("id", subseccionId);
             await cmd.ExecuteNonQueryAsync();
         }

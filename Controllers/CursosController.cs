@@ -149,7 +149,7 @@ namespace Campus_Virtul_GRLL.Controllers
             string estado = "borrador";
             string? texto = null;
             string? archivoUrl = null; string? archivoMime = null; long? archivoSize = null;
-            string? videoUrl = null; string? videoMime = null; long? videoSize = null; int? videoDuracion = null;
+            string? videoUrl = null; string? videoMime = null; long? videoSize = null; int? videoDuracion = null; DateTimeOffset? fechaLimite = null; int? maxPuntaje = null;
 
             try
             {
@@ -163,10 +163,11 @@ namespace Campus_Virtul_GRLL.Controllers
                     TrustServerCertificate = true
                 }.ConnectionString);
                 await conn.OpenAsync();
-                using var cmd = new Npgsql.NpgsqlCommand(@"select s.sesion_id, s.titulo, s.tipo, s.estado, s.texto_contenido,
-                                                             s.archivo_url, s.archivo_mime, s.archivo_size_bytes,
-                                                             s.video_url, s.video_mime, s.video_size_bytes, s.video_duracion_segundos
-                                                          from public.subsecciones s where s.id=@id limit 1", conn);
+                     using var cmd = new Npgsql.NpgsqlCommand(@"select s.sesion_id, s.titulo, s.tipo, s.estado, s.texto_contenido,
+                                                                                 s.archivo_url, s.archivo_mime, s.archivo_size_bytes,
+                                                                                 s.video_url, s.video_mime, s.video_size_bytes, s.video_duracion_segundos,
+                                                                                 s.fecha_limite, s.max_puntaje
+                                                                             from public.subsecciones s where s.id=@id limit 1", conn);
                 cmd.Parameters.AddWithValue("id", subseccionId);
                 using var r = await cmd.ExecuteReaderAsync();
                 if (!await r.ReadAsync()) return NotFound();
@@ -182,6 +183,8 @@ namespace Campus_Virtul_GRLL.Controllers
                 videoMime = r.IsDBNull(9) ? null : r.GetString(9);
                 videoSize = r.IsDBNull(10) ? (long?)null : r.GetInt64(10);
                 videoDuracion = r.IsDBNull(11) ? (int?)null : r.GetInt32(11);
+                fechaLimite = r.IsDBNull(12) ? (DateTimeOffset?)null : new DateTimeOffset(r.GetDateTime(12), TimeSpan.Zero);
+                maxPuntaje = r.IsDBNull(13) ? (int?)null : r.GetInt32(13);
             }
             catch (Exception ex)
             {
@@ -190,6 +193,8 @@ namespace Campus_Virtul_GRLL.Controllers
             }
 
             ViewBag.Subseccion = (subseccionId, sesionId, titulo, tipo, estado, texto, archivoUrl, archivoMime, archivoSize, videoUrl, videoMime, videoSize, videoDuracion);
+            ViewBag.FechaLimite = fechaLimite;
+            ViewBag.MaxPuntaje = maxPuntaje;
 
             // Generar signed URLs si hay recursos
             string? archivoSigned = null;
@@ -374,7 +379,11 @@ namespace Campus_Virtul_GRLL.Controllers
             string? archivoMimePrimario = adjuntos.FirstOrDefault().mime;
             long? archivoSizePrimario = adjuntos.FirstOrDefault().size;
 
-            var subseccionId = await _repo.CreateSubseccionAsync(sesionId, titulo.Trim(), tipoVal, textoContenido, archivoUrlPrimario, videoUrl, maxPuntaje, "borrador");
+            if (tipoVal == "tarea" && (!maxPuntaje.HasValue || maxPuntaje.Value <= 0))
+            {
+                maxPuntaje = 20;
+            }
+            var subseccionId = await _repo.CreateSubseccionAsync(sesionId, titulo.Trim(), tipoVal, textoContenido, archivoUrlPrimario, videoUrl, maxPuntaje, "borrador", null, null);
             // Actualizar metadata de archivo/video
             await _repo.UpdateSubseccionAsync(subseccionId,
                 nuevoArchivoUrl: archivoUrlPrimario,
@@ -536,6 +545,212 @@ namespace Campus_Virtul_GRLL.Controllers
             return RedirectToAction(GetDetalleActionForCurrentUser(), new { id = idCurso });
         }
 
+        // Crear sesión rápida (título y orden automáticos)
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearSesionRapida(Guid idCurso)
+        {
+            var sesiones = await _repo.GetSesionesPorCursoAsync(idCurso);
+            var nextOrden = (sesiones.Count == 0) ? 1 : sesiones.Max(s => s.orden) + 1;
+            var titulo = $"Sesión {nextOrden}";
+            await _repo.CreateSesionAsync(idCurso, titulo, nextOrden);
+            TempData["Mensaje"] = "Sesión creada";
+            return RedirectToAction(GetDetalleActionForCurrentUser(), new { id = idCurso });
+        }
+
+        // Crear subsección rápida y redirigir al detalle para edición
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CrearSubseccionRapida(Guid idCurso, Guid sesionId, string tipo)
+        {
+            var tipoVal = (tipo ?? "contenido").Trim().ToLowerInvariant();
+            if (!(new[] { "contenido", "video", "tarea" }).Contains(tipoVal)) tipoVal = "contenido";
+            var existentes = await _repo.GetSubseccionesPorSesionAsync(sesionId);
+            var nextOrden = (existentes.Count == 0) ? 1 : existentes.Max(s => s.orden) + 1;
+            var titulo = $"Subsección {nextOrden}";
+            var defaultMax = tipoVal == "tarea" ? 20 : (int?)null;
+            var subseccionId = await _repo.CreateSubseccionAsync(sesionId, titulo, tipoVal, null, null, null, defaultMax, "borrador", nextOrden, null);
+            TempData["Mensaje"] = "Subsección creada";
+            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+        }
+
+        // Guardar cambios integrados desde el detalle de subsección
+        [Authorize(Roles="Administrador,Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarSubseccion(
+            Guid idCurso,
+            Guid subseccionId,
+            string? titulo,
+            string? textoContenido,
+            IFormFile? archivo,
+            string? enlace,
+            string? accionArchivo,
+            IFormFile? video,
+            DateTimeOffset? fechaLimite,
+            int? maxPuntaje)
+        {
+            Guid sesionId; string tipo; string? archivoUrlAnterior; string? videoUrlAnterior;
+            string? archivoMimeAnterior; long? archivoSizeAnterior; string? videoMimeAnterior; long? videoSizeAnterior; int? videoDuracionAnterior;
+            try
+            {
+                using var conn = new Npgsql.NpgsqlConnection(new Npgsql.NpgsqlConnectionStringBuilder
+                {
+                    Host = Environment.GetEnvironmentVariable("SUPABASE_DB_HOST"),
+                    Database = Environment.GetEnvironmentVariable("SUPABASE_DB_NAME") ?? "postgres",
+                    Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
+                    Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
+                    SslMode = Npgsql.SslMode.Require,
+                    TrustServerCertificate = true
+                }.ConnectionString);
+                await conn.OpenAsync();
+                using var cmd = new Npgsql.NpgsqlCommand(@"select sesion_id, tipo, archivo_url, archivo_mime, archivo_size_bytes, video_url, video_mime, video_size_bytes, video_duracion_segundos from public.subsecciones where id=@id", conn);
+                cmd.Parameters.AddWithValue("id", subseccionId);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return NotFound();
+                sesionId = r.GetGuid(0);
+                tipo = r.GetString(1);
+                archivoUrlAnterior = r.IsDBNull(2) ? null : r.GetString(2);
+                archivoMimeAnterior = r.IsDBNull(3) ? null : r.GetString(3);
+                archivoSizeAnterior = r.IsDBNull(4) ? (long?)null : r.GetInt64(4);
+                videoUrlAnterior = r.IsDBNull(5) ? null : r.GetString(5);
+                videoMimeAnterior = r.IsDBNull(6) ? null : r.GetString(6);
+                videoSizeAnterior = r.IsDBNull(7) ? (long?)null : r.GetInt64(7);
+                videoDuracionAnterior = r.IsDBNull(8) ? (int?)null : r.GetInt32(8);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cargando subsección {SubId}", subseccionId);
+                TempData["Error"] = "No se pudo cargar la subsección";
+                return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+            }
+
+            string? nuevoArchivoUrl = archivoUrlAnterior; string? nuevoArchivoMime = archivoMimeAnterior; long? nuevoArchivoSize = archivoSizeAnterior;
+            string? nuevoVideoUrl = videoUrlAnterior; string? nuevoVideoMime = videoMimeAnterior; long? nuevoVideoSize = videoSizeAnterior; int? nuevoVideoDuracion = videoDuracionAnterior;
+
+            if (tipo == "contenido" || tipo == "tarea")
+            {
+                if (!string.IsNullOrWhiteSpace(accionArchivo))
+                {
+                    if (accionArchivo == "eliminar")
+                    {
+                        if (!string.IsNullOrWhiteSpace(archivoUrlAnterior) && archivoUrlAnterior!.Contains("/sesiones/") && !archivoUrlAnterior.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await _storage.DeleteAsync("course-assets", archivoUrlAnterior);
+                        }
+                        nuevoArchivoUrl = null; nuevoArchivoMime = null; nuevoArchivoSize = null;
+                    }
+                    else if (accionArchivo == "reemplazarArchivo")
+                    {
+                        if (archivo == null || archivo.Length == 0)
+                        {
+                            TempData["Error"] = "Selecciona un PDF para reemplazar.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        if (!string.IsNullOrWhiteSpace(archivoUrlAnterior) && archivoUrlAnterior!.Contains("/sesiones/") && !archivoUrlAnterior.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await _storage.DeleteAsync("course-assets", archivoUrlAnterior);
+                        }
+                        var mime = archivo.ContentType; var size = archivo.Length;
+                        if (size > 50_000_000)
+                        {
+                            TempData["Error"] = "El archivo excede 50MB.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        var objPath = $"{idCurso}/sesiones/{sesionId}/assets/{Guid.NewGuid()}_{Path.GetFileName(archivo.FileName)}";
+                        using var stream = archivo.OpenReadStream();
+                        var up = await _storage.UploadAsync("course-assets", objPath, stream, mime ?? MediaTypeNames.Application.Octet);
+                        if (!up.ok)
+                        {
+                            TempData["Error"] = up.error ?? "Error subiendo archivo";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        nuevoArchivoUrl = objPath; nuevoArchivoMime = mime; nuevoArchivoSize = size;
+                    }
+                    else if (accionArchivo == "reemplazarEnlace")
+                    {
+                        if (string.IsNullOrWhiteSpace(enlace))
+                        {
+                            TempData["Error"] = "Ingresa un enlace válido.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        if (!string.IsNullOrWhiteSpace(archivoUrlAnterior) && archivoUrlAnterior!.Contains("/sesiones/") && !archivoUrlAnterior.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await _storage.DeleteAsync("course-assets", archivoUrlAnterior);
+                        }
+                        nuevoArchivoUrl = enlace!.Trim(); nuevoArchivoMime = null; nuevoArchivoSize = null;
+                    }
+                }
+            }
+
+            if (tipo == "video")
+            {
+                if (!string.IsNullOrWhiteSpace(accionArchivo))
+                {
+                    if (accionArchivo == "eliminar" && !string.IsNullOrWhiteSpace(videoUrlAnterior))
+                    {
+                        await _storage.DeleteAsync("course-videos", videoUrlAnterior!);
+                        nuevoVideoUrl = null; nuevoVideoMime = null; nuevoVideoSize = null; nuevoVideoDuracion = null;
+                    }
+                    else if (accionArchivo == "reemplazarArchivo")
+                    {
+                        if (video == null || video.Length == 0)
+                        {
+                            TempData["Error"] = "Selecciona un video para reemplazar.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        if (!string.IsNullOrWhiteSpace(videoUrlAnterior))
+                        {
+                            await _storage.DeleteAsync("course-videos", videoUrlAnterior!);
+                        }
+                        var mime = video.ContentType; var size = video.Length;
+                        if (!(new[]{"video/mp4","video/webm"}).Contains(mime ?? ""))
+                        {
+                            TempData["Error"] = "Solo se permiten videos MP4 o WebM.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        if (size > 200_000_000)
+                        {
+                            TempData["Error"] = "El video excede 200MB.";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        var objPath = $"{idCurso}/sesiones/{sesionId}/videos/{Guid.NewGuid()}_{Path.GetFileName(video.FileName)}";
+                        using var stream = video.OpenReadStream();
+                        var up = await _storage.UploadAsync("course-videos", objPath, stream, mime);
+                        if (!up.ok)
+                        {
+                            TempData["Error"] = up.error ?? "Error subiendo video";
+                            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+                        }
+                        nuevoVideoUrl = objPath; nuevoVideoMime = mime; nuevoVideoSize = size;
+                    }
+                }
+            }
+
+            // Solo tareas tienen max puntaje y fecha límite
+            if (tipo != "tarea") { maxPuntaje = null; fechaLimite = null; }
+
+            await _repo.UpdateSubseccionAsync(
+                subseccionId,
+                nuevoTitulo: string.IsNullOrWhiteSpace(titulo)? null : titulo!.Trim(),
+                nuevoTextoContenido: textoContenido,
+                nuevoArchivoUrl: nuevoArchivoUrl,
+                nuevoArchivoMime: nuevoArchivoMime,
+                nuevoArchivoSizeBytes: nuevoArchivoSize,
+                nuevoVideoUrl: nuevoVideoUrl,
+                nuevoVideoMime: nuevoVideoMime,
+                nuevoVideoSizeBytes: nuevoVideoSize,
+                nuevoVideoDuracionSegundos: nuevoVideoDuracion,
+                nuevoMaxPuntaje: maxPuntaje,
+                nuevaFechaLimite: fechaLimite
+            );
+
+            TempData["Mensaje"] = "Subsección guardada";
+            return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
+        }
+
         // Crear curso desde catálogo (modal)
         [Authorize(Roles="Administrador")]
         [HttpPost]
@@ -549,8 +764,13 @@ namespace Campus_Virtul_GRLL.Controllers
             }
             var estadoVal = string.IsNullOrWhiteSpace(estado) ? "borrador" : estado.Trim().ToLower();
             if (estadoVal != "borrador" && estadoVal != "publicado") estadoVal = "borrador";
-            await _repo.CreateCursoAsync(titulo.Trim(), string.IsNullOrWhiteSpace(descripcion)? null : descripcion.Trim(), estadoVal);
-            TempData["Mensaje"] = "Curso creado";
+            var cursoId = await _repo.CreateCursoAsync(titulo.Trim(), string.IsNullOrWhiteSpace(descripcion)? null : descripcion.Trim(), estadoVal);
+            // Crear 14 sesiones por defecto
+            for (int i = 1; i <= 14; i++)
+            {
+                await _repo.CreateSesionAsync(cursoId, $"Sesión {i}", i);
+            }
+            TempData["Mensaje"] = "Curso creado con 14 sesiones";
             return RedirectToAction("Index");
         }
     }

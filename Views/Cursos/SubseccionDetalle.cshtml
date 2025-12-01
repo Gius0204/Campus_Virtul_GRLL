@@ -6,25 +6,52 @@
     var sub = ((Guid id, Guid sesionId, string titulo, string tipo, string estado, string? texto, string? archivoUrl, string? archivoMime, long? archivoSize, string? videoUrl, string? videoMime, long? videoSize, int? videoDuracion))ViewBag.Subseccion;
     string? archivoSigned = ViewBag.ArchivoSigned as string;
     string? videoSigned = ViewBag.VideoSigned as string;
+    DateTimeOffset? fechaLimite = ViewBag.FechaLimite != null ? (DateTimeOffset)ViewBag.FechaLimite : (DateTimeOffset?)null;
+    int? maxPuntaje = ViewBag.MaxPuntaje != null ? (int)ViewBag.MaxPuntaje : (int?)null;
+    string fechaLimiteValue = fechaLimite.HasValue ? fechaLimite.Value.ToLocalTime().ToString("yyyy-MM-ddTHH:mm") : string.Empty;
 }
 <div class="container-fluid">
-    <a class="btn btn-link" href="@Url.Action("DetalleProfesor","Cursos", new { id = c.Item1 })">← Volver al curso</a>
-    <h3 class="mb-2">@sub.titulo</h3>
-    <p class="text-muted">Tipo: @sub.tipo · Estado: @sub.estado</p>
+    <div class="d-flex justify-content-between align-items-start mb-2">
+        <a class="btn btn-link" href="@Url.Action("DetalleProfesor","Cursos", new { id = c.Item1 })">← Volver al curso</a>
+        <div class="d-flex gap-2">
+            <form method="post" asp-action="CambiarEstadoSubseccion" asp-controller="Cursos" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@c.Item1" />
+                <input type="hidden" name="subseccionId" value="@sub.id" />
+                <input type="hidden" name="nuevoEstado" value="@(sub.estado == "publicado" ? "borrador" : "publicado")" />
+                <button class="btn btn-sm @(sub.estado == "publicado" ? "btn-secondary" : "btn-success")">@(sub.estado == "publicado" ? "Borrador" : "Publicar")</button>
+            </form>
+            <form method="post" asp-action="EliminarSubseccion" asp-controller="Cursos" class="d-inline" onsubmit="return confirm('¿Eliminar esta subsección y todos sus adjuntos?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@c.Item1" />
+                <input type="hidden" name="subseccionId" value="@sub.id" />
+                <button class="btn btn-outline-danger">Eliminar</button>
+            </form>
+        </div>
+    </div>
+    <form method="post" asp-action="GuardarSubseccion" asp-controller="Cursos" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idCurso" value="@c.Item1" />
+        <input type="hidden" name="subseccionId" value="@sub.id" />
+        <input type="hidden" name="accionArchivo" id="accionArchivo" value="" />
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary">Guardar</button>
+        </div>
+        <div class="mb-2">
+            <input name="titulo" class="form-control" value="@sub.titulo" placeholder="Título de la subsección" />
+        </div>
+        <div class="text-muted mb-3">Tipo: @sub.tipo · Estado: @sub.estado</div>
 
     @if (sub.tipo == "contenido" || sub.tipo == "tarea")
     {
-        if (!string.IsNullOrWhiteSpace(sub.texto))
-        {
-            <div class="content-card mb-3">
-                <h6>Contenido</h6>
-                <p>@sub.texto</p>
-            </div>
-        }
-        if (!string.IsNullOrWhiteSpace(archivoSigned))
-        {
-            <div class="content-card mb-3">
-                <h6>Archivo adjunto</h6>
+        <div class="content-card mb-3">
+            <h6>Contenido</h6>
+            <textarea name="textoContenido" class="form-control" rows="4" placeholder="Texto / Instrucciones">@sub.texto</textarea>
+        </div>
+        <div class="content-card mb-3">
+            <h6>Archivo adjunto</h6>
+            @if (!string.IsNullOrWhiteSpace(archivoSigned))
+            {
                 @if ((sub.archivoMime ?? "").StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (archivoSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
                 {
                     <div class="ratio" style="--bs-aspect-ratio: 140%;">
@@ -35,12 +62,55 @@
                     <a class="btn btn-primary" href="@archivoSigned" target="_blank">Descargar adjunto</a>
                     <p class="text-muted d-inline ms-2">@sub.archivoMime (@(sub.archivoSize ?? 0) bytes)</p>
                 </div>
+                <hr />
+            }
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">@(string.IsNullOrWhiteSpace(archivoSigned) ? "Subir archivo (PDF)" : "Reemplazar archivo (PDF)")</label>
+                    <input type="file" name="archivo" accept="application/pdf" class="form-control" />
+                    <small class="text-muted">Solo PDF.</small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <button type="submit" class="btn btn-outline-primary" onclick="document.getElementById('accionArchivo').value='reemplazarArchivo'">@(string.IsNullOrWhiteSpace(archivoSigned) ? "Subir archivo" : "Reemplazar archivo")</button>
+                    @if (!string.IsNullOrWhiteSpace(archivoSigned))
+                    {
+                        <button type="submit" class="btn btn-outline-danger ms-2" onclick="document.getElementById('accionArchivo').value='eliminar'">Eliminar</button>
+                    }
+                </div>
+                <div class="col-md-8 mt-2">
+                    <label class="form-label">Reemplazar por enlace</label>
+                    <input type="url" name="enlace" class="form-control" placeholder="https://..." />
+                    <small class="text-muted">Al guardar por enlace se eliminará el archivo del Storage.</small>
+                </div>
+                <div class="col-md-4 mt-2 text-md-end">
+                    <button type="submit" class="btn btn-outline-secondary" onclick="document.getElementById('accionArchivo').value='reemplazarEnlace'">Usar enlace</button>
+                </div>
+            </div>
+        </div>
+
+        @if (sub.tipo == "tarea")
+        {
+            <div class="content-card mb-3">
+                <h6>Configuración de Tarea</h6>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha límite</label>
+                        <input type="datetime-local" name="fechaLimite" class="form-control" value="@fechaLimiteValue" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Puntaje máximo</label>
+                        <input type="number" name="maxPuntaje" class="form-control" min="0" max="20" value="@(maxPuntaje ?? 20)" />
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a class="btn btn-outline-secondary" href="@Url.Action("CalificarTarea","Cursos", new { idCurso = c.Item1, subseccionId = sub.id })">Calificar</a>
+                </div>
             </div>
         }
     }
     else if (sub.tipo == "video")
     {
-        if (!string.IsNullOrWhiteSpace(videoSigned))
+        @if (!string.IsNullOrWhiteSpace(videoSigned))
         {
             <div class="ratio ratio-16x9 mb-3">
                 <video src="@videoSigned" controls preload="metadata"></video>
@@ -51,16 +121,24 @@
         {
             <div class="alert alert-warning">Video no disponible.</div>
         }
+        <div class="content-card mb-3">
+            <h6>Subir video</h6>
+            <input type="file" name="video" accept="video/*" class="form-control" />
+            <div class="mt-2">
+                <button type="submit" class="btn btn-outline-primary" onclick="document.getElementById('accionArchivo').value='reemplazarArchivo'">@(string.IsNullOrWhiteSpace(videoSigned) ? "Subir video" : "Reemplazar video")</button>
+                @if (!string.IsNullOrWhiteSpace(videoSigned))
+                {
+                    <button type="submit" class="btn btn-outline-danger ms-2" onclick="document.getElementById('accionArchivo').value='eliminar'">Eliminar</button>
+                }
+            </div>
+        </div>
         if (!string.IsNullOrWhiteSpace(sub.texto))
         {
             <div class="content-card mb-3">
                 <h6>Notas</h6>
-                <p>@sub.texto</p>
+                <textarea name="textoContenido" class="form-control" rows="3" placeholder="Notas">@sub.texto</textarea>
             </div>
         }
     }
-    else
-    {
-        <div class="alert alert-info">Tipo desconocido.</div>
-    }
+    </form>
 </div>
