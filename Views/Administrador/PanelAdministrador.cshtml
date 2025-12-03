@@ -96,7 +96,7 @@
                                             <td>@(string.IsNullOrWhiteSpace(c.descripcion) ? "-" : c.descripcion)</td>
                                             <td>@c.estado</td>
                                             <td>
-                                                @{ var asignados = (IEnumerable<(Guid profesorId, string nombres, string correo)>)ViewBag.ProfesoresAsignadosPorCurso?.Invoke(c.id) ?? Enumerable.Empty<(Guid profesorId, string nombres, string correo)>(); }
+                                                @{ var asignados = (IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>)ViewBag.ProfesoresAsignadosPorCurso?.Invoke(c.id) ?? Enumerable.Empty<(Guid, string, string?, string?, string, string?)>(); }
                                                 @(asignados.Count())
                                             </td>
                                             <td>@c.creadoEn.ToString("yyyy-MM-dd")</td>

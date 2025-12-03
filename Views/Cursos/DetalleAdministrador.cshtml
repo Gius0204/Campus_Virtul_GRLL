@@ -46,7 +46,7 @@
             <p><strong>Creado:</strong> @c.creadoEn.ToString("yyyy-MM-dd")</p>
             <hr />
             <h5>Profesores asignados</h5>
-            @{ var asignados = (IEnumerable<(Guid profesorId, string nombres, string correo)>)ViewBag.ProfesoresAsignados ?? Enumerable.Empty<(Guid profesorId, string nombres, string correo)>(); }
+            @{ var asignados = (IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>)ViewBag.ProfesoresAsignados ?? Enumerable.Empty<(Guid, string, string?, string?, string, string?)>(); }
             @if (!asignados.Any())
             {
                 <p class="text-muted">No hay profesores asignados.</p>
@@ -54,13 +54,15 @@
             else
             {
                 <table class="table table-sm">
-                    <thead><tr><th>Nombres</th><th>Correo</th><th>Acción</th></tr></thead>
+                    <thead><tr><th>Nombres</th><th>Apellidos</th><th>Correo</th><th>Área</th><th>Acción</th></tr></thead>
                     <tbody>
                     @foreach (var p in asignados)
                     {
                         <tr>
                             <td>@p.nombres</td>
+                            <td>@(p.apellidos ?? "-")</td>
                             <td>@p.correo</td>
+                            <td>@(p.area ?? "-")</td>
                             <td>
                                 @if (puedeEditar)
                                 {
@@ -82,7 +84,7 @@
                 <hr />
                 <h5>Asignar nuevos profesores</h5>
                 <input type="text" id="buscarProfesor" class="form-control form-control-sm mb-2" placeholder="Buscar profesor..." />
-                var disponibles = (IEnumerable<(Guid profesorId, string nombres, string correo)>)ViewBag.ProfesoresDisponibles ?? Enumerable.Empty<(Guid profesorId, string nombres, string correo)>();
+                var disponibles = (IEnumerable<(Guid id, string nombres, string correo)>)ViewBag.ProfesoresDisponibles ?? Enumerable.Empty<(Guid, string, string)>();
                 @if (!disponibles.Any())
                 {
                     <p class="text-muted">No hay profesores disponibles para asignar.</p>
@@ -101,7 +103,7 @@
                                     <form method="post" asp-action="AsignarProfesor" asp-controller="Cursos" class="d-inline">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="idCurso" value="@c.id" />
-                                        <input type="hidden" name="profesorId" value="@p.profesorId" />
+                                        <input type="hidden" name="profesorId" value="@p.id" />
                                         <button class="btn btn-outline-primary btn-sm">Asignar</button>
                                     </form>
                                 </td>
