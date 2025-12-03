@@ -24,16 +24,16 @@
                             </h2>
                             <div id="@collapseId" class="accordion-collapse collapse @expanded" data-bs-parent="#sesionesAccordion">
                                 <div class="accordion-body p-0">
-                                    <table class="table table-sm mb-0">
+                                    <table class="table table-sm mb-0" style="table-layout: fixed;">
                                         <thead class="table-light">
-                                            <tr><th class="ps-3">Título</th><th>Tipo</th><th class="text-end pe-3">&nbsp;</th></tr>
+                                            <tr><th class="ps-3" style="width:65%">Título</th><th style="width:20%">Tipo</th><th class="text-end pe-3" style="width:15%">&nbsp;</th></tr>
                                         </thead>
                                         <tbody>
                                         @foreach (var sub in s.Subsecciones)
                                         {
                                             var isSelected = Model.Seleccionada != null && Model.Seleccionada.Id == sub.Id;
                                             <tr class="@(isSelected ? "table-primary" : null)">
-                                                <td class="ps-3"><a class="text-decoration-none" href="@Url.Action("Detalle","Practicante", new { id = Model.CursoId, subId = sub.Id })">@sub.Titulo</a></td>
+                                                <td class="ps-3 text-truncate"><a class="text-decoration-none" href="@Url.Action("Detalle","Practicante", new { id = Model.CursoId, subId = sub.Id })">@sub.Titulo</a></td>
                                                 <td><span class="badge bg-secondary text-capitalize">@sub.Tipo</span></td>
                                                 <td class="text-end pe-3">
                                                     @if (sub.Tipo == "tarea" && sub.FechaLimite.HasValue)
@@ -58,6 +58,18 @@
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h4 class="m-0">@Model.Seleccionada?.Titulo</h4>
                     <div class="text-muted small">@Model.Titulo</div>
+                </div>
+
+                @{
+                    // Calcular anterior/siguiente entre subsecciones publicadas
+                    var flat = Model.Sesiones.OrderBy(x => x.Orden).SelectMany(x => x.Subsecciones.OrderBy(z => z.Orden)).ToList();
+                    var idx = Model.Seleccionada != null ? flat.FindIndex(f => f.Id == Model.Seleccionada.Id) : -1;
+                    var prev = idx > 0 ? flat[idx - 1] : null;
+                    var next = idx >= 0 && idx < flat.Count - 1 ? flat[idx + 1] : null;
+                }
+                <div class="d-flex justify-content-between mb-3">
+                    <a class="btn btn-outline-secondary btn-sm @(prev == null ? "disabled" : null)" href="@(prev == null ? "#" : Url.Action("Detalle","Practicante", new { id = Model.CursoId, subId = prev.Id }))">← Anterior</a>
+                    <a class="btn btn-outline-secondary btn-sm @(next == null ? "disabled" : null)" href="@(next == null ? "#" : Url.Action("Detalle","Practicante", new { id = Model.CursoId, subId = next.Id }))">Siguiente →</a>
                 </div>
 
                 @if (Model.Seleccionada == null)
@@ -85,26 +97,87 @@
                             }
                             else
                             {
-                                <a class="btn btn-outline-primary" target="_blank" href="@Model.Seleccionada.ArchivoUrlSigned">Abrir archivo</a>
+                                <a class="btn btn-outline-primary" target="_blank" href="@Model.Seleccionada.ArchivoUrlSigned">Descargar</a>
                             }
                             <div class="text-muted small mt-1">@Model.Seleccionada.ArchivoMime · @(Model.Seleccionada.ArchivoSize ?? 0) bytes</div>
                         </div>
                     }
                     if (Model.Seleccionada.Tipo == "tarea")
                     {
-                        <div class="alert alert-secondary d-flex align-items-center justify-content-between">
-                            <div>
-                                <strong>Tarea:</strong>
-                                @if (Model.Seleccionada.FechaLimite.HasValue)
-                                {
-                                    <span class="ms-2">Fecha límite: @Model.Seleccionada.FechaLimite.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
-                                }
-                                @if (Model.Seleccionada.MaxPuntaje.HasValue)
-                                {
-                                    <span class="ms-2">Puntaje máximo: @Model.Seleccionada.MaxPuntaje</span>
-                                }
+                        var vencida = Model.Seleccionada.FechaLimite.HasValue && DateTimeOffset.Now > Model.Seleccionada.FechaLimite.Value.ToLocalTime();
+                        var calificada = string.Equals(Model.Seleccionada.EntregaEstado, "calificado", StringComparison.OrdinalIgnoreCase);
+                        <div class="content-card mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div>
+                                    <strong>Tarea</strong>
+                                    @if (Model.Seleccionada.FechaLimite.HasValue)
+                                    {
+                                        <span class="ms-2">Fecha límite: @Model.Seleccionada.FechaLimite.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                                    }
+                                    @if (Model.Seleccionada.MaxPuntaje.HasValue)
+                                    {
+                                        <span class="ms-2">Puntaje máximo: @Model.Seleccionada.MaxPuntaje</span>
+                                    }
+                                </div>
+                                <div>
+                                    @if (calificada)
+                                    {
+                                        <span class="badge rounded-pill text-bg-success">Calificada: @Model.Seleccionada.EntregaCalificacion</span>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaEstado))
+                                    {
+                                        <span class="badge rounded-pill text-bg-info">@Model.Seleccionada.EntregaEstado</span>
+                                    }
+                                    else if (vencida)
+                                    {
+                                        <span class="badge rounded-pill text-bg-warning">Vencida</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge rounded-pill text-bg-secondary">No entregada</span>
+                                    }
+                                </div>
                             </div>
-                            <button class="btn btn-primary btn-sm" disabled>Entregar (Próximamente)</button>
+
+                            @if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaArchivoUrlSigned))
+                            {
+                                <div class="mb-3">
+                                    <div class="small text-muted mb-1">Tu archivo entregado</div>
+                                    <a class="btn btn-outline-primary btn-sm" target="_blank" href="@Model.Seleccionada.EntregaArchivoUrlSigned">Abrir</a>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaEnlaceUrl))
+                            {
+                                <div class="mb-3">
+                                    <div class="small text-muted mb-1">Tu enlace entregado</div>
+                                    <a class="btn btn-outline-primary btn-sm" target="_blank" href="@Model.Seleccionada.EntregaEnlaceUrl">Abrir</a>
+                                </div>
+                            }
+
+                            <form method="post" enctype="multipart/form-data" action="@Url.Action("Entregar","Practicante")" class="row g-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="cursoId" value="@Model.CursoId" />
+                                <input type="hidden" name="subseccionId" value="@Model.Seleccionada.Id" />
+                                <div class="col-md-6">
+                                    <label class="form-label small">Archivo PDF</label>
+                                    <input type="file" name="archivo" accept="application/pdf" class="form-control form-control-sm" @(calificada || vencida ? "disabled" : null) />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">O enlace externo</label>
+                                    <input type="url" name="enlace" placeholder="https://..." class="form-control form-control-sm" @(calificada || vencida ? "disabled" : null) />
+                                </div>
+                                <div class="col-12 d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-primary btn-sm" @(calificada || vencida ? "disabled" : null)>Enviar/Actualizar entrega</button>
+                                </div>
+                            </form>
+                            @if (calificada)
+                            {
+                                <div class="text-muted small mt-2">La entrega está calificada y ya no puede modificarse.</div>
+                            }
+                            else if (vencida)
+                            {
+                                <div class="text-muted small mt-2">La fecha límite venció; no se permiten nuevas entregas.</div>
+                            }
                         </div>
                     }
                 }

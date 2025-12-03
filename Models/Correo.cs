@@ -2,8 +2,8 @@
 {
     public class Correo
     {
-        public string Para { get; set; }
-        public string Asunto { get; set; }
-        public string Contenido { get; set; }
+    public required string Para { get; set; }
+    public required string Asunto { get; set; }
+    public required string Contenido { get; set; }
     }
 }

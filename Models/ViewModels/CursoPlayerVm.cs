@@ -46,5 +46,13 @@ namespace Campus_Virtul_GRLL.Models.ViewModels
         public int? VideoDuracion { get; set; }
         public DateTimeOffset? FechaLimite { get; set; }
         public int? MaxPuntaje { get; set; }
+
+        // Tarea/Entrega info for practicante
+        public Guid? TareaId { get; set; }
+        public string? EntregaEstado { get; set; } // entregado | calificado
+        public decimal? EntregaCalificacion { get; set; }
+        public string? EntregaArchivoUrlSigned { get; set; }
+        public string? EntregaEnlaceUrl { get; set; }
+        public DateTimeOffset? EntregadoEn { get; set; }
     }
 }

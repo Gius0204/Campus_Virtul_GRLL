@@ -824,5 +824,157 @@ namespace Campus_Virtul_GRLL.Services
             }
             return list;
         }
+
+        // ----- Tareas y Entregas -----
+        public async Task<(Guid tareaId, Guid subseccionId, string titulo, DateTimeOffset? fechaEntrega)?> GetTareaPorSubseccionAsync(Guid subseccionId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select t.id, t.subseccion_id, t.titulo, t.fecha_entrega
+                                               from public.tareas t
+                                               where t.subseccion_id=@sid
+                                               limit 1", conn);
+            cmd.Parameters.AddWithValue("sid", subseccionId);
+            using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                var fecha = r.IsDBNull(3) ? (DateTimeOffset?)null : new DateTimeOffset(r.GetDateTime(3), TimeSpan.Zero);
+                return (r.GetGuid(0), r.GetGuid(1), r.GetString(2), fecha);
+            }
+            return null;
+        }
+
+        public async Task<Guid> EnsureTareaParaSubseccionAsync(Guid subseccionId, string titulo, DateTimeOffset? fechaEntrega)
+        {
+            // Crea la tarea si no existe y devuelve su id
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            // Buscar existente
+            Guid? existente = null;
+            using (var cmdFind = new NpgsqlCommand("select id from public.tareas where subseccion_id=@sid limit 1", conn))
+            {
+                cmdFind.Parameters.AddWithValue("sid", subseccionId);
+                var o = await cmdFind.ExecuteScalarAsync();
+                if (o is Guid g) existente = g;
+            }
+            if (existente != null) return existente.Value;
+            // Crear
+            using var cmdIns = new NpgsqlCommand(@"insert into public.tareas (id, subseccion_id, titulo, fecha_entrega)
+                                                  values (gen_random_uuid(), @sid, @t, @f)
+                                                  returning id", conn);
+            cmdIns.Parameters.AddWithValue("sid", subseccionId);
+            cmdIns.Parameters.AddWithValue("t", titulo);
+            cmdIns.Parameters.AddWithValue("f", (object?)(fechaEntrega?.UtcDateTime) ?? DBNull.Value);
+            var idObj = await cmdIns.ExecuteScalarAsync();
+            return (Guid)idObj!;
+        }
+
+        public async Task<(Guid entregaId, Guid tareaId, Guid usuarioId, string? urlArchivo, string? enlaceUrl, decimal? calificacion, string estado, DateTimeOffset entregadoEn, DateTimeOffset? calificadoEn)?>
+            GetEntregaAsync(Guid tareaId, Guid usuarioId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select id, tarea_id, usuario_id, url_archivo, enlace_url, calificacion, coalesce(estado,'entregado'), entregado_en, calificado_en
+                                               from public.entregas_tareas
+                                               where tarea_id=@tid and usuario_id=@uid
+                                               limit 1", conn);
+            cmd.Parameters.AddWithValue("tid", tareaId);
+            cmd.Parameters.AddWithValue("uid", usuarioId);
+            using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                return (
+                    r.GetGuid(0),
+                    r.GetGuid(1),
+                    r.GetGuid(2),
+                    r.IsDBNull(3) ? null : r.GetString(3),
+                    r.IsDBNull(4) ? null : r.GetString(4),
+                    r.IsDBNull(5) ? (decimal?)null : r.GetDecimal(5),
+                    r.GetString(6),
+                    new DateTimeOffset(r.GetDateTime(7), TimeSpan.Zero),
+                    r.IsDBNull(8) ? (DateTimeOffset?)null : new DateTimeOffset(r.GetDateTime(8), TimeSpan.Zero)
+                );
+            }
+            return null;
+        }
+
+        public async Task<Guid> UpsertEntregaAsync(Guid tareaId, Guid usuarioId, string? urlArchivo, string? enlaceUrl, DateTimeOffset? fechaLimiteUtc)
+        {
+            // Bloqueos: si fecha límite vencida o ya calificado, no permitir actualizar
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+
+            // Revisar entrega existente
+            var existente = await GetEntregaAsync(tareaId, usuarioId);
+            if (existente != null)
+            {
+                if (existente.Value.calificacion != null || existente.Value.calificadoEn != null || string.Equals(existente.Value.estado, "calificado", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("La entrega ya fue calificada y no puede modificarse.");
+            }
+            if (fechaLimiteUtc != null && DateTimeOffset.UtcNow > fechaLimiteUtc.Value)
+                throw new InvalidOperationException("La fecha límite ya venció.");
+
+            // Upsert
+            using var cmd = new NpgsqlCommand(@"insert into public.entregas_tareas (id, tarea_id, usuario_id, url_archivo, enlace_url, estado, entregado_en)
+                                              values (gen_random_uuid(), @t, @u, @url, @enl, 'entregado', now())
+                                              on conflict (tarea_id, usuario_id)
+                                              do update set url_archivo = EXCLUDED.url_archivo,
+                                                            enlace_url = EXCLUDED.enlace_url,
+                                                            estado = 'entregado',
+                                                            actualizado_en = now()
+                                              returning id", conn);
+            cmd.Parameters.AddWithValue("t", tareaId);
+            cmd.Parameters.AddWithValue("u", usuarioId);
+            cmd.Parameters.AddWithValue("url", (object?)urlArchivo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("enl", (object?)enlaceUrl ?? DBNull.Value);
+            var idObj = await cmd.ExecuteScalarAsync();
+            return (Guid)idObj!;
+        }
+
+        public async Task CalificarEntregaAsync(Guid entregaId, decimal calificacion)
+        {
+            if (calificacion < 0 || calificacion > 20) throw new ArgumentOutOfRangeException(nameof(calificacion), "La calificación debe estar entre 0 y 20.");
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"update public.entregas_tareas
+                                               set calificacion=@c,
+                                                   estado='calificado',
+                                                   calificado_en=now(),
+                                                   actualizado_en=now()
+                                               where id=@id", conn);
+            cmd.Parameters.AddWithValue("c", calificacion);
+            cmd.Parameters.AddWithValue("id", entregaId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<(Guid entregaId, Guid usuarioId, string practicanteNombre, string? urlArchivo, string? enlaceUrl, decimal? calificacion, string estado, DateTimeOffset entregadoEn, DateTimeOffset? calificadoEn)>>
+            ListarEntregasPorTareaAsync(Guid tareaId)
+        {
+            var list = new List<(Guid, Guid, string, string?, string?, decimal?, string, DateTimeOffset, DateTimeOffset?)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select e.id, e.usuario_id, u.nombres, e.url_archivo, e.enlace_url, e.calificacion, coalesce(e.estado,'entregado'), e.entregado_en, e.calificado_en
+                                               from public.entregas_tareas e
+                                               join public.usuarios u on u.id = e.usuario_id
+                                               where e.tarea_id=@t
+                                               order by e.entregado_en desc", conn);
+            cmd.Parameters.AddWithValue("t", tareaId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add((
+                    r.GetGuid(0),
+                    r.GetGuid(1),
+                    r.GetString(2),
+                    r.IsDBNull(3)? null: r.GetString(3),
+                    r.IsDBNull(4)? null: r.GetString(4),
+                    r.IsDBNull(5)? (decimal?)null: r.GetDecimal(5),
+                    r.GetString(6),
+                    new DateTimeOffset(r.GetDateTime(7), TimeSpan.Zero),
+                    r.IsDBNull(8)? (DateTimeOffset?)null: new DateTimeOffset(r.GetDateTime(8), TimeSpan.Zero)
+                ));
+            }
+            return list;
+        }
     }
 }

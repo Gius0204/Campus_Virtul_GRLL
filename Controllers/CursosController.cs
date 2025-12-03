@@ -367,7 +367,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
                 var objPath = $"{idCurso}/sesiones/{sesionId}/videos/{Guid.NewGuid()}_{Path.GetFileName(video.FileName)}";
                 using var stream = video.OpenReadStream();
-                var up = await _storage.UploadAsync("course-videos", objPath, stream, videoMime);
+                var up = await _storage.UploadAsync("course-videos", objPath, stream, videoMime ?? MediaTypeNames.Application.Octet);
                 if (!up.ok)
                 {
                     TempData["Error"] = up.error ?? "Error subiendo video";
@@ -581,6 +581,67 @@ namespace Campus_Virtul_GRLL.Controllers
             return RedirectToAction("VerSubseccion", new { idCurso, subseccionId });
         }
 
+        // Revisar y calificar entregas de una subsección tipo tarea
+        [Authorize(Roles="Profesor,Administrador")]
+        [HttpGet]
+        public async Task<IActionResult> RevisarTarea(Guid idCurso, Guid subseccionId)
+        {
+            // Validar curso
+            var cursos = await _repo.GetCursosAsync();
+            var curso = cursos.FirstOrDefault(c => c.id == idCurso);
+            if (curso.id == Guid.Empty) return NotFound();
+            ViewBag.Curso = curso;
+
+            // Obtener tarea asociada (crear si falta)
+            var tarea = await _repo.GetTareaPorSubseccionAsync(subseccionId);
+            Guid tareaId;
+            if (tarea == null)
+            {
+                tareaId = await _repo.EnsureTareaParaSubseccionAsync(subseccionId, "Entrega", null);
+            }
+            else
+            {
+                tareaId = tarea.Value.tareaId;
+                ViewBag.FechaEntrega = tarea.Value.fechaEntrega;
+                ViewBag.TareaTitulo = tarea.Value.titulo;
+            }
+
+            // Listar entregas
+            var entregas = await _repo.ListarEntregasPorTareaAsync(tareaId);
+            // Firmar URLs de archivos para que el botón "Abrir" funcione fuera de localhost
+            var entregasFirmadas = new List<(Guid entregaId, Guid usuarioId, string practicanteNombre, string? urlArchivo, string? enlaceUrl, decimal? calificacion, string estado, DateTimeOffset entregadoEn, DateTimeOffset? calificadoEn)>();
+            foreach (var e in entregas)
+            {
+                string? urlArchivoFirmada = e.urlArchivo;
+                if (!string.IsNullOrWhiteSpace(e.urlArchivo) && !e.urlArchivo.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !e.urlArchivo.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var su = await _storage.GetSignedUrlAsync("course-assets", e.urlArchivo);
+                    if (su.ok) urlArchivoFirmada = su.signedUrl;
+                }
+                entregasFirmadas.Add((e.entregaId, e.usuarioId, e.practicanteNombre, urlArchivoFirmada, e.enlaceUrl, e.calificacion, e.estado, e.entregadoEn, e.calificadoEn));
+            }
+            ViewBag.Entregas = entregasFirmadas;
+            ViewBag.SubseccionId = subseccionId;
+            return View("RevisarTarea");
+        }
+
+        [Authorize(Roles="Profesor,Administrador")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CalificarEntrega(Guid idCurso, Guid subseccionId, Guid entregaId, decimal calificacion)
+        {
+            try
+            {
+                await _repo.CalificarEntregaAsync(entregaId, calificacion);
+                TempData["Mensaje"] = "Entrega calificada";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction("RevisarTarea", new { idCurso, subseccionId });
+        }
+
         // Guardar cambios integrados desde el detalle de subsección
         [Authorize(Roles="Administrador,Profesor")]
         [HttpPost]
@@ -723,7 +784,7 @@ namespace Campus_Virtul_GRLL.Controllers
                         }
                         var objPath = $"{idCurso}/sesiones/{sesionId}/videos/{Guid.NewGuid()}_{Path.GetFileName(video.FileName)}";
                         using var stream = video.OpenReadStream();
-                        var up = await _storage.UploadAsync("course-videos", objPath, stream, mime);
+                        var up = await _storage.UploadAsync("course-videos", objPath, stream, mime ?? MediaTypeNames.Application.Octet);
                         if (!up.ok)
                         {
                             TempData["Error"] = up.error ?? "Error subiendo video";

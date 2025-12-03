@@ -1,0 +1,97 @@
+@{
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var curso = (ValueTuple<Guid, string, string?, string, System.DateTime>)ViewBag.Curso;
+    var entregas = (List<(Guid entregaId, Guid usuarioId, string practicanteNombre, string? urlArchivo, string? enlaceUrl, decimal? calificacion, string estado, System.DateTimeOffset entregadoEn, System.DateTimeOffset? calificadoEn)>)ViewBag.Entregas;
+    var subseccionId = (Guid)ViewBag.SubseccionId;
+    var fechaEntrega = (System.DateTimeOffset?)ViewBag.FechaEntrega;
+    var tareaTitulo = (string?)ViewBag.TareaTitulo ?? "Entrega";
+}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="m-0">Revisar tarea: @tareaTitulo</h3>
+            <div class="text-muted">Curso: @curso.Item2</div>
+        </div>
+        <div>
+            <a class="btn btn-outline-secondary" href="@Url.Action("VerSubseccion","Cursos", new { idCurso = curso.Item1, subseccionId = subseccionId })">← Volver a subsección</a>
+        </div>
+    </div>
+
+    @if (fechaEntrega.HasValue)
+    {
+        <div class="alert alert-info">Fecha límite: @fechaEntrega.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+    }
+
+    <div class="content-card">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Practicante</th>
+                    <th>Estado</th>
+                    <th>Entregado</th>
+                    <th>Archivo</th>
+                    <th>Enlace</th>
+                    <th style="width:180px">Calificación (0-20)</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var e in entregas)
+            {
+                var calificada = string.Equals(e.estado, "calificado", System.StringComparison.OrdinalIgnoreCase);
+                <tr>
+                    <td>@e.practicanteNombre</td>
+                    <td>
+                        @if (calificada)
+                        {
+                            <span class="badge text-bg-success">Calificado</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Entregado</span>
+                        }
+                    </td>
+                    <td>@e.entregadoEn.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(e.urlArchivo))
+                        {
+                            <a class="btn btn-outline-primary btn-sm" href="@e.urlArchivo" target="_blank">Abrir</a>
+                        }
+                    </td>
+                    <td>
+                        @if (!string.IsNullOrWhiteSpace(e.enlaceUrl))
+                        {
+                            <a class="btn btn-outline-primary btn-sm" href="@e.enlaceUrl" target="_blank">Abrir</a>
+                        }
+                    </td>
+                    <td>
+                        <form method="post" action="@Url.Action("CalificarEntrega","Cursos")" class="d-flex align-items-center gap-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idCurso" value="@curso.Item1" />
+                            <input type="hidden" name="subseccionId" value="@subseccionId" />
+                            <input type="hidden" name="entregaId" value="@e.entregaId" />
+                            <input type="number" step="0.5" min="0" max="20" name="calificacion" value="@(e.calificacion ?? 0)" class="form-control form-control-sm" />
+                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        </form>
+                    </td>
+                    <td>
+                        @if (e.calificadoEn.HasValue)
+                        {
+                            <span class="text-muted small">Calificado: @e.calificadoEn.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                        }
+                        else if (e.calificacion.HasValue)
+                        {
+                            <span class="text-muted small">Calificación actual: @e.calificacion</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (entregas.Count == 0)
+        {
+            <div class="alert alert-warning">Aún no hay entregas para esta tarea.</div>
+        }
+    </div>
+</div>

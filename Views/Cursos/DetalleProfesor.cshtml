@@ -111,6 +111,11 @@
                                                                 </td>
                                                                 <td>@sub.estado</td>
                                                                 <td>
+                                                                    @* Acceso rápido a revisión de entregas cuando es tarea *@
+                                                                    @if (sub.tipo == "tarea")
+                                                                    {
+                                                                        <a class="btn btn-sm btn-outline-primary me-1" href="@Url.Action("RevisarTarea","Cursos", new { idCurso = c.id, subseccionId = sub.id })">Revisar entregas</a>
+                                                                    }
                                                                     @if (puedeEditar)
                                                                     {
                                                                         <form method="post" asp-action="CambiarEstadoSubseccion" asp-controller="Cursos" class="d-inline">

@@ -51,14 +51,15 @@ namespace Campus_Virtul_GRLL.Controllers
                 var cursos = await _repo.GetCursosAsync();
                 ViewBag.Cursos = cursos;
                 // Pre-cargar profesores asignados por curso en un diccionario para la vista
-                var dict = new Dictionary<Guid, List<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>();
+                var dict = new Dictionary<Guid, List<(Guid profesorId, string nombres, string correo)>>();
                 foreach (var c in cursos)
                 {
-                    var asignados = await _repo.GetCursoProfesoresAsync(c.id);
-                    dict[c.id] = asignados;
+                    var asignadosExt = await _repo.GetCursoProfesoresAsync(c.id);
+                    // Proyectar a la tupla corta usada por la vista
+                    dict[c.id] = asignadosExt.Select(p => (p.profesorId, p.nombres, p.correo)).ToList();
                 }
-                // Exponer delegado para recuperar lista fácilmente
-                ViewBag.ProfesoresAsignadosPorCurso = new Func<Guid, IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>(cid => dict.ContainsKey(cid) ? dict[cid] : Enumerable.Empty<(Guid, string, string?, string?, string, string?)>());
+                // Exponer delegado para recuperar lista fácilmente (tupla corta)
+                ViewBag.ProfesoresAsignadosPorCurso = new Func<Guid, IEnumerable<(Guid profesorId, string nombres, string correo)>>(cid => dict.ContainsKey(cid) ? dict[cid] : Enumerable.Empty<(Guid, string, string)>());
             }
             else
             {

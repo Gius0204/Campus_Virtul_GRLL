@@ -76,6 +76,9 @@ namespace Campus_Virtul_GRLL.Controllers
         // GET: /Practicante/Detalle/{id}
         public async Task<IActionResult> Detalle(Guid id, Guid? subId)
         {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            Guid? uid = null;
+            if (!string.IsNullOrWhiteSpace(userIdStr) && Guid.TryParse(userIdStr, out var g2)) uid = g2;
             var cursos = await _repo.GetCursosAsync();
             var c = cursos.FirstOrDefault(x => x.id == id);
             if (c.id == Guid.Empty) return NotFound();
@@ -185,7 +188,7 @@ namespace Campus_Virtul_GRLL.Controllers
                     videoSigned = su.ok ? su.signedUrl : null;
                 }
 
-                detalle = new Models.ViewModels.SubDetalleVm
+                var subDetalleVm = new Models.ViewModels.SubDetalleVm
                 {
                     Id = selectedId,
                     SesionId = sesionId,
@@ -203,6 +206,44 @@ namespace Campus_Virtul_GRLL.Controllers
                     FechaLimite = fechaLimite,
                     MaxPuntaje = maxPuntaje
                 };
+
+                // Si es tarea, cargar tarea vinculada y posible entrega del usuario
+                if (string.Equals(subDetalleVm.Tipo, "tarea", StringComparison.OrdinalIgnoreCase))
+                {
+                    var tarea = await _repo.GetTareaPorSubseccionAsync(subDetalleVm.Id);
+                    Guid? tareaId = null;
+                    DateTimeOffset? fechaEntrega = null;
+                    if (tarea != null)
+                    {
+                        tareaId = tarea.Value.tareaId;
+                        fechaEntrega = tarea.Value.fechaEntrega;
+                    }
+                    subDetalleVm.TareaId = tareaId;
+                    // Entrega del usuario
+                    if (tareaId != null && uid.HasValue)
+                    {
+                        var entrega = await _repo.GetEntregaAsync(tareaId.Value, uid.Value);
+                        if (entrega != null)
+                        {
+                            subDetalleVm.EntregaEstado = entrega.Value.estado;
+                            subDetalleVm.EntregaCalificacion = entrega.Value.calificacion;
+                            subDetalleVm.EntregadoEn = entrega.Value.calificadoEn ?? entrega.Value.entregadoEn;
+                            subDetalleVm.EntregaEnlaceUrl = entrega.Value.enlaceUrl;
+                            // Generar signed URL para archivo entregado si aplica
+                            if (!string.IsNullOrWhiteSpace(entrega.Value.urlArchivo))
+                            {
+                                var suEnt = await _storage.GetSignedUrlAsync("course-assets", entrega.Value.urlArchivo);
+                                subDetalleVm.EntregaArchivoUrlSigned = suEnt.ok ? suEnt.signedUrl : entrega.Value.urlArchivo;
+                            }
+                        }
+                        // Usar fecha límite de subsección si existe
+                        if (subDetalleVm.FechaLimite == null && fechaEntrega != null)
+                        {
+                            subDetalleVm.FechaLimite = fechaEntrega;
+                        }
+                    }
+                }
+                detalle = subDetalleVm;
             }
 
             var vm = new Campus_Virtul_GRLL.Models.ViewModels.CursoPlayerVm
@@ -214,6 +255,57 @@ namespace Campus_Virtul_GRLL.Controllers
                 Seleccionada = detalle
             };
             return View("~/Views/Practicante/Detalle.cshtml", vm);
+        }
+
+        // POST: /Practicante/Entregar
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Entregar(Guid cursoId, Guid subseccionId, IFormFile? archivo, string? enlace)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var uid))
+                return RedirectToAction("Index", "Login");
+
+            // obtener tarea y fecha límite
+            var tarea = await _repo.GetTareaPorSubseccionAsync(subseccionId);
+            Guid tareaId;
+            DateTimeOffset? fechaLimite = null;
+            if (tarea == null)
+            {
+                // crear si falta con título por defecto
+                tareaId = await _repo.EnsureTareaParaSubseccionAsync(subseccionId, "Entrega", null);
+            }
+            else
+            {
+                tareaId = tarea.Value.tareaId;
+                fechaLimite = tarea.Value.fechaEntrega;
+            }
+
+            string? storedPath = null;
+            if (archivo != null && archivo.Length > 0)
+            {
+                // subir a storage
+                var objectPath = $"tareas/{tareaId}/{uid}/{archivo.FileName}";
+                using var stream = archivo.OpenReadStream();
+                var up = await _storage.UploadAsync("course-assets", objectPath, stream, archivo.ContentType ?? "application/octet-stream");
+                if (!up.ok)
+                {
+                    TempData["Error"] = up.error ?? "No se pudo subir el archivo";
+                    return RedirectToAction(nameof(Detalle), new { id = cursoId, subId = subseccionId });
+                }
+                storedPath = objectPath;
+            }
+
+            try
+            {
+                await _repo.UpsertEntregaAsync(tareaId, uid, storedPath, enlace, fechaLimite?.ToUniversalTime());
+                TempData["Mensaje"] = "Entrega registrada";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction(nameof(Detalle), new { id = cursoId, subId = subseccionId });
         }
 
         // POST: /Practicante/SolicitarInscripcion/{cursoId}
