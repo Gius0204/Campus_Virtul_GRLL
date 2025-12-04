@@ -41,10 +41,18 @@
                         {
                             foreach (var r in roles)
                             {
-                                <option value="@r.id">@r.nombre</option>
+                                if (string.Equals(r.nombre, "Profesor", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(r.nombre, "Practicante", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <option value="@r.id">@r.nombre</option>
+                                }
                             }
                         }
                     </select>
+                    <small style="color:#666; display:block; margin-top:8px;">
+                        Al ser aprobada, recibirá una contraseña temporal por correo.
+                        En su primer inicio se le pedirá cambiarla por una nueva.
+                    </small>
                 </div>
                 <div class="input-box">
                     <span class="details">Nombres</span>
@@ -82,14 +90,7 @@
                         }
                     </select>
                 </div>
-                <div class="input-box">
-                    <span class="details">Contraseña</span>
-                    <input type="password" id="contrasena" name="Contrasena" placeholder="Crea una contraseña" maxlength="100" />
-                </div>
-                <div class="input-box">
-                    <span class="details">Confirmar Contraseña</span>
-                    <input type="password" id="confirmarContrasena" name="ConfirmarContrasena" placeholder="Confirme su contraseña" maxlength="100" />
-                </div>
+                @* Se eliminan los campos de contraseña según requerimiento *@
             </div>
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <a class="btn btn-secondary" href="@Url.Action("Index","Login")">← Volver al Login</a>

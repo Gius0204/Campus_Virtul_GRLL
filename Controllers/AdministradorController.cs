@@ -160,11 +160,25 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (!string.IsNullOrWhiteSpace(correo))
                 {
                     await _repo.ActivateUserByCorreoAsync(correo);
-                    // Opcional: establecer una contraseña temporal (enviar por correo en futuro)
                     var usuarioDb = await _repo.GetUserByEmailAsync(correo);
                     if (usuarioDb.HasValue)
                     {
-                        await _repo.UpdateUserPasswordAsync(usuarioDb.Value.id, "Cambio123");
+                        // Generar contraseña temporal segura
+                        var tempPassword = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+                            .Replace("=","")
+                            .Replace("+","")
+                            .Replace("/","")
+                            .Substring(0, 12);
+                        await _repo.UpdateUserPasswordAsync(usuarioDb.Value.id, tempPassword);
+                        await _repo.SetRequirePasswordChangeAsync(usuarioDb.Value.id, true);
+
+                        // Enviar correo con la contraseña temporal
+                        var emailSvc = HttpContext.RequestServices.GetService<Campus_Virtul_GRLL.Services.EmailService>();
+                        if (emailSvc != null && emailSvc.IsConfigured)
+                        {
+                            var body = $"<p>Hola {usuarioDb.Value.nombres},</p><p>Tu solicitud fue aprobada.</p><p>Tu contraseña temporal es: <b>{tempPassword}</b></p><p>Inicia sesión y se te pedirá cambiarla por una nueva.</p>";
+                            await emailSvc.SendAsync(correo, "Cuenta aprobada - Contraseña temporal", body);
+                        }
                     }
                 }
                 TempData["Mensaje"] = "Solicitud aprobada correctamente.";

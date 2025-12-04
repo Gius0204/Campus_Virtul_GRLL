@@ -19,8 +19,9 @@
 
 <body>
     <div class="container">
+        @{ bool esPrimerInicio = (ViewBag.EsPrimerInicio as bool?) ?? false; }
         <div class="title">
-            @if (ViewBag.EsPrimerInicio)
+            @if (esPrimerInicio)
             {
                 <text>🔐 Cambio de Contraseña Obligatorio</text>
             }
@@ -30,7 +31,7 @@
             }
         </div>
 
-        @if (ViewBag.EsPrimerInicio)
+        @if (esPrimerInicio)
         {
             <div class="alert alert-warning" style="margin-bottom: 20px;">
                 <strong>⚠️ Primer Inicio:</strong> Por seguridad, debe cambiar su contraseña temporal.
@@ -102,7 +103,7 @@
             </div>
 
             @* Solo muestra el botón de volver si NO es primer inicio *@
-            @if (!ViewBag.EsPrimerInicio)
+            @if (!esPrimerInicio)
             {
                 <div style="text-align: center; margin-top: 15px;">
                     <a href="@Url.Action("Index", "Dashboard")" style="color: #666;">

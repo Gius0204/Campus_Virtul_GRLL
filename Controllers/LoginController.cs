@@ -37,7 +37,7 @@ namespace Campus_Virtul_GRLL.Controllers
         /// Procesar solicitud de registro para aprobación de admin
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Registro(string NombreCompleto, string Correo, int? IdRol, string? Apellidos, string? DNI, string? Telefono, string? Area, string? Contrasena, string? ConfirmarContrasena)
+        public async Task<IActionResult> Registro(string NombreCompleto, string Correo, int? IdRol, string? Apellidos, string? DNI, string? Telefono, string? Area)
         {
             try
             {
@@ -53,22 +53,7 @@ namespace Campus_Virtul_GRLL.Controllers
                     return View();
                 }
 
-                // Validar contraseñas
-                if (string.IsNullOrWhiteSpace(Contrasena) || string.IsNullOrWhiteSpace(ConfirmarContrasena))
-                {
-                    TempData["Error"] = "Ingrese y confirme su contraseña.";
-                    return View();
-                }
-                if (Contrasena.Trim().Length < 6)
-                {
-                    TempData["Error"] = "La contraseña debe tener al menos 6 caracteres.";
-                    return View();
-                }
-                if (Contrasena.Trim() != ConfirmarContrasena.Trim())
-                {
-                    TempData["Error"] = "Las contraseñas no coinciden.";
-                    return View();
-                }
+                // Sin contraseña en registro: se generará una temporal al aprobar
 
                 // Si ya existe usuario, informar
                 var existente = await _repo.GetUserByEmailAsync(Correo);
@@ -84,7 +69,7 @@ namespace Campus_Virtul_GRLL.Controllers
                     // Resolver rol
                     var roles = await _repo.GetRolesAsync();
                     Guid rolId = roles.FirstOrDefault(r =>
-                        (IdRol == 1 && r.nombre.Equals("Colaborador", StringComparison.OrdinalIgnoreCase)) ||
+                        (IdRol == 1 && r.nombre.Equals("Profesor", StringComparison.OrdinalIgnoreCase)) ||
                         (IdRol == 2 && r.nombre.Equals("Practicante", StringComparison.OrdinalIgnoreCase))
                     ).id;
                     if (rolId == Guid.Empty)
@@ -93,7 +78,7 @@ namespace Campus_Virtul_GRLL.Controllers
                         rolId = rolUsuario.id != Guid.Empty ? rolUsuario.id : roles.First().id;
                     }
 
-                    await _repo.CreateUserAsync(NombreCompleto.Trim(), Correo, rolId, activo: false, plainPassword: Contrasena.Trim());
+                    await _repo.CreateUserAsync(NombreCompleto.Trim(), Correo, rolId, activo: false, plainPassword: null, apellidos: Apellidos, dni: DNI, telefono: Telefono);
                 }
                 catch
                 {
@@ -101,7 +86,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // Crear solicitud en tabla public.solicitudes (si existe). Si no, solo quedará usuario inactivo esperando aprobación.
-                var creoSolicitud = false;
+                // Intentar registrar la solicitud vinculada al usuario
                 try
                 {
                     using var conn = new Npgsql.NpgsqlConnection(new Npgsql.NpgsqlConnectionStringBuilder
@@ -114,11 +99,9 @@ namespace Campus_Virtul_GRLL.Controllers
                         SslMode = Npgsql.SslMode.Require,
                     }.ConnectionString);
                     await conn.OpenAsync();
-                    using var cmd = new Npgsql.NpgsqlCommand("insert into public.solicitudes (id, nombre, correo, estado, creado_en) values (gen_random_uuid(), @n, @c, 'pendiente', now())", conn);
-                    cmd.Parameters.AddWithValue("n", NombreCompleto.Trim());
+                    using var cmd = new Npgsql.NpgsqlCommand("insert into public.solicitudes (id, usuario_id, tipo, detalle, estado, creada_en) select gen_random_uuid(), u.id, 'registro', null, 'pendiente', now() from public.usuarios u where lower(u.correo)=lower(@c) on conflict do nothing", conn);
                     cmd.Parameters.AddWithValue("c", Correo);
                     await cmd.ExecuteNonQueryAsync();
-                    creoSolicitud = true;
                 }
                 catch
                 {
@@ -239,12 +222,17 @@ namespace Campus_Virtul_GRLL.Controllers
                 // ============================================
                 // 6. REDIRECCIONAR SEGÚN EL ESTADO DEL USUARIO
                 // ============================================
-
-                // Si es primer inicio, debe cambiar su contraseña
-                // flujo de primer inicio removido; usamos contraseña con hash directamente
+                // Enforzar cambio de contraseña si está marcado
+                var requireChange = await _repo.GetRequirePasswordChangeAsync(usuarioDb.Value.id);
+                if (requireChange)
+                {
+                    TempData["MensajeModal"] = "Debes cambiar tu contraseña temporal por una nueva.";
+                    ViewBag.EsPrimerInicio = true;
+                    ViewBag.NombreUsuario = usuarioDb.Value.nombres;
+                    return View("CambiarContrasena");
+                }
 
                 // Login exitoso normal
-                //TempData["Mensaje"] = $"¡Bienvenido {usuario.Nombres}!";
                 _logger.LogInformation($"Redirigiendo al Dashboard - Usuario ID: {usuarioDb.Value.id}");
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -306,29 +294,28 @@ namespace Campus_Virtul_GRLL.Controllers
                 }
 
                 // ============================================
-                // 3. GENERAR TOKEN DE RECUPERACIÓN
+                // 3. Generar contraseña temporal y forzar cambio
                 // ============================================
-                var token = Guid.NewGuid().ToString();
-                var fechaExpiracion = DateTime.Now.AddMinutes(15);
-                // Nota: si deseas persistir token en DB, agregamos columnas luego.
+                var tempPassword = Convert.ToBase64String(Guid.NewGuid().ToByteArray())
+                    .Replace("=","")
+                    .Replace("+","")
+                    .Replace("/","")
+                    .Substring(0, 12);
+                await _repo.UpdateUserPasswordAsync(usuarioDb.Value.id, tempPassword);
+                await _repo.SetRequirePasswordChangeAsync(usuarioDb.Value.id, true);
 
                 // ============================================
                 // 4. ENVIAR CORREO DE RECUPERACIÓN
                 // ============================================
-                var urlRecuperacion = Url.Action(
-                    "RestablecerContrasena",
-                    "Login",
-                    new { token = token },
-                    Request.Scheme
-                );
+                // Enviar correo con la contraseña temporal
+                var emailSvc = HttpContext.RequestServices.GetService<Campus_Virtul_GRLL.Services.EmailService>();
+                if (emailSvc != null && emailSvc.IsConfigured)
+                {
+                    var body = $"<p>Has solicitado recuperar tu contraseña.</p><p>Tu contraseña temporal es: <b>{tempPassword}</b></p><p>Inicia sesión y se te pedirá cambiarla por una nueva.</p>";
+                    await emailSvc.SendAsync(usuarioDb.Value.correo ?? CorreoElectronico, "Recuperación de contraseña", body);
+                }
 
-                _logger.LogInformation($"✅ Token de recuperación generado para usuario ID: {usuarioDb.Value.id}");
-                _logger.LogInformation($"URL de recuperación: {urlRecuperacion}");
-
-                // TODO: Aquí deberías integrar un servicio de correo (SendGrid, SMTP, etc.)
-                // Por ahora solo mostramos el mensaje de éxito
-
-                TempData["MensajeModal"] = "Se ha enviado un correo electrónico con las instrucciones para el cambio de tu contraseña. Por favor verifica la información enviada.";
+                TempData["MensajeModal"] = "Se envió una contraseña temporal a tu correo. Inicia sesión y cámbiala.";
                 return View("Login");
             }
             catch (Exception ex)
@@ -399,6 +386,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 // 3. ACTUALIZAR CONTRASEÑA
                 // ============================================
                 await _repo.UpdateUserPasswordAsync(userId, ContrasenaNueva.Trim());
+                await _repo.SetRequirePasswordChangeAsync(userId, false);
                 _logger.LogInformation($"✅ Contraseña actualizada exitosamente - Usuario ID: {userId}");
 
                 // ============================================
@@ -434,8 +422,8 @@ namespace Campus_Virtul_GRLL.Controllers
                     authProperties
                 );
 
-                TempData["Mensaje"] = "Contraseña actualizada exitosamente.";
-                return RedirectToAction("Index", "Login");
+                TempData["ToastSuccess"] = "Contraseña actualizada exitosamente.";
+                return RedirectToAction("Index", "Dashboard");
             }
             catch (Exception ex)
             {

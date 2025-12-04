@@ -149,6 +149,40 @@ namespace Campus_Virtul_GRLL.Services
             await EnsureAdminFromEnvAsync();
         }
 
+        // Ensure schema changes required by new flows
+        public async Task EnsureSchemaAdjustmentsAsync()
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            // Add require_password_change boolean if missing
+            try
+            {
+                using var cmd = new NpgsqlCommand("ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS require_password_change boolean DEFAULT false", conn);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch { /* ignore */ }
+        }
+
+        public async Task SetRequirePasswordChangeAsync(Guid userId, bool require)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("update public.usuarios set require_password_change=@r, actualizado_en=now() where id=@id", conn);
+            cmd.Parameters.AddWithValue("r", require);
+            cmd.Parameters.AddWithValue("id", userId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<bool> GetRequirePasswordChangeAsync(Guid userId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("select coalesce(require_password_change, false) from public.usuarios where id=@id", conn);
+            cmd.Parameters.AddWithValue("id", userId);
+            var r = await cmd.ExecuteScalarAsync();
+            return r != null && r is bool b && b;
+        }
+
         public async Task<(Guid id, string nombres, string? apellidos, string? dni, string? telefono, Guid? areaId, string correo, string? passwordHash, bool activo, Guid rolId, string rolNombre)?> GetUserByEmailAsync(string correo)
         {
             using var conn = CreateConnection();

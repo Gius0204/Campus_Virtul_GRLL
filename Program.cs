@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // ============================================
 builder.Services.AddSingleton<InMemoryDataStore>(); // Se dejará mientras migras lógica a Supabase
 builder.Services.AddSingleton<SupabaseRepository>();
+builder.Services.AddSingleton<EmailService>();
 
 // ============================================
 // 2. CONFIGURAR AUTENTICACI�N CON COOKIES
@@ -107,6 +108,8 @@ try
     using var scope = app.Services.CreateScope();
     var repo = scope.ServiceProvider.GetRequiredService<SupabaseRepository>();
     repo.InitializeAsync().GetAwaiter().GetResult();
+    // Ensure schema adjustments (new columns)
+    try { repo.EnsureSchemaAdjustmentsAsync().GetAwaiter().GetResult(); } catch { }
     var rolesCount = repo.GetRolesCountAsync().GetAwaiter().GetResult();
     app.Logger.LogInformation("Roles en Supabase: {Count}", rolesCount);
 
