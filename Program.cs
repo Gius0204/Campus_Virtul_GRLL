@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<InMemoryDataStore>(); // Se dejará mientras migras lógica a Supabase
 builder.Services.AddSingleton<SupabaseRepository>();
 builder.Services.AddSingleton<EmailService>();
+builder.Services.AddMemoryCache();
 
 // ============================================
 // 2. CONFIGURAR AUTENTICACI�N CON COOKIES

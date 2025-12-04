@@ -120,25 +120,37 @@ namespace Campus_Virtul_GRLL.Controllers
             {
                 var solicitudesDb = await _repo.GetSolicitudesAsync();
                 ViewBag.SolicitudesRaw = solicitudesDb;
-                // Mapear a un modelo simple para la vista existente o ajustar la vista
-                var lista = solicitudesDb.Select(s => new Solicitud
+                // Enriquecer datos buscando usuario por correo
+                var lista = new List<Solicitud>();
+                foreach (var s in solicitudesDb)
                 {
-                    IdSolicitud = 0, // la vista usa int; mantenemos 0 y mostramos datos principales
-                    Nombres = string.Empty,
-                    Apellidos = string.Empty,
-                    DNI = string.Empty,
-                    Telefono = string.Empty,
-                    CorreoElectronico = s.correo,
-                    Area = string.Empty,
-                    FechaSolicitud = DateOnly.FromDateTime(s.creadoEn),
-                    Estado = s.estado?.ToLower() switch
+                    var u = await _repo.GetUserByEmailAsync(s.correo);
+                    var areaNombre = string.Empty;
+                    if (u.HasValue && u.Value.areaId.HasValue)
                     {
-                        "aprobada" => EstadoSolicitud.Aprobada,
-                        "rechazada" => EstadoSolicitud.Rechazada,
-                        "en revision" => EstadoSolicitud.EnRevision,
-                        _ => EstadoSolicitud.Enviada
+                        var areas = await _repo.GetAreasAsync();
+                        areaNombre = areas.FirstOrDefault(a => a.id == u.Value.areaId.Value).nombre;
                     }
-                }).ToList();
+                    lista.Add(new Solicitud
+                    {
+                        IdSolicitud = 0,
+                        Nombres = u.HasValue ? u.Value.nombres : string.Empty,
+                        Apellidos = u.HasValue ? (u.Value.apellidos ?? "") : string.Empty,
+                        DNI = u.HasValue ? (u.Value.dni ?? "") : string.Empty,
+                        Telefono = u.HasValue ? (u.Value.telefono ?? "") : string.Empty,
+                        CorreoElectronico = s.correo,
+                        Area = areaNombre,
+                        FechaSolicitud = DateOnly.FromDateTime(s.creadoEn),
+                        Estado = s.estado?.ToLower() switch
+                        {
+                            "aprobada" => EstadoSolicitud.Aprobada,
+                            "rechazada" => EstadoSolicitud.Rechazada,
+                            "en revision" => EstadoSolicitud.EnRevision,
+                            _ => EstadoSolicitud.Enviada
+                        },
+                        Rol = new Rol { IdRol = 0, NombreRol = u.HasValue ? u.Value.rolNombre : "", Descripcion = "", Estado = true }
+                    });
+                }
 
                 return View(lista);
             }
@@ -181,7 +193,7 @@ namespace Campus_Virtul_GRLL.Controllers
                         }
                     }
                 }
-                TempData["Mensaje"] = "Solicitud aprobada correctamente.";
+                TempData["ToastSuccess"] = "Solicitud aprobada correctamente.";
                 return RedirectToAction("PanelSolicitudes");
             }
             catch (Exception ex)
@@ -203,7 +215,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 {
                     await _repo.DeleteUserByCorreoAsync(correo);
                 }
-                TempData["Mensaje"] = "Solicitud rechazada correctamente.";
+                TempData["ToastSuccess"] = "Solicitud rechazada correctamente.";
                 return RedirectToAction("PanelSolicitudes");
             }
             catch (Exception ex)

@@ -1,16 +1,21 @@
 ﻿using Campus_Virtul_GRLL.Services;
 using Campus_Virtul_GRLL.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
     public class SolicitudController : Controller
     {
         private readonly SupabaseRepository _repo;
+        private readonly ILogger<SolicitudController> _logger;
+        private readonly IMemoryCache _cache;
 
-        public SolicitudController(SupabaseRepository repo)
+        public SolicitudController(SupabaseRepository repo, ILogger<SolicitudController> logger, IMemoryCache cache)
         {
             _repo = repo;
+            _logger = logger;
+            _cache = cache;
         }
 
         [HttpGet]
@@ -94,28 +99,49 @@ namespace Campus_Virtul_GRLL.Controllers
                     return View(modelo);
                 }
 
-                // Crear usuario inactivo en DB con rol y área seleccionada
-                // Convertir Area a areaId (la vista se actualizará para enviar Guid)
+                // Paso de verificación: generar código y enviar por correo
                 Guid? areaId = null;
-                    var areaSeleccionada = Request.Form["Area"].FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(areaSeleccionada) && Guid.TryParse(areaSeleccionada, out var aid)) areaId = aid;
-                var nuevoUsuarioId = await _repo.CreateUserAsync(
-                    nombres: modelo.Nombres.Trim(),
-                    correo: modelo.CorreoElectronico.Trim().ToLower(),
-                        rolId: rolId,
-                    activo: false,
-                        plainPassword: null,
-                    apellidos: modelo.Apellidos.Trim(),
-                    dni: modelo.DNI.Trim(),
-                    telefono: modelo.Telefono.Trim(),
-                    areaId: areaId
-                );
+                var areaSeleccionada = Request.Form["Area"].FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(areaSeleccionada) && Guid.TryParse(areaSeleccionada, out var aid)) areaId = aid;
 
-                // Crear solicitud vinculada
-                await _repo.CreateSolicitudAsync(nuevoUsuarioId, "registro", "Solicitud de registro de usuario");
+                var correo = modelo.CorreoElectronico?.Trim().ToLower();
+                correo = correo ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(correo))
+                {
+                    TempData["Error"] = "Ingrese un correo electrónico válido.";
+                    var roles2 = await _repo.GetRolesAsync(); ViewBag.Roles = roles2;
+                    var areas2 = await _repo.GetAreasAsync(); ViewBag.Areas = areas2;
+                    return View(modelo);
+                }
 
-                TempData["Mensaje"] = "Tu solicitud ha sido enviada correctamente. Espera la revisión del administrador.";
-                return RedirectToAction("Index", "Login");
+                var code = new Random().Next(100000, 999999).ToString();
+                var cacheKey = $"verif:{correo}";
+                _cache.Set(cacheKey, new PendingSolicitud
+                {
+                    Codigo = code,
+                    Expira = DateTime.UtcNow.AddMinutes(15),
+                    Datos = new PendingSolicitudData
+                    {
+                        Nombres = modelo.Nombres.Trim(),
+                        Apellidos = modelo.Apellidos.Trim(),
+                        DNI = modelo.DNI.Trim(),
+                        Telefono = modelo.Telefono.Trim(),
+                        Correo = correo,
+                        RolId = rolId,
+                        AreaId = areaId
+                    }
+                }, TimeSpan.FromMinutes(15));
+
+                // Enviar código por correo
+                var emailSvc = HttpContext.RequestServices.GetService<Campus_Virtul_GRLL.Services.EmailService>();
+                if (emailSvc != null && emailSvc.IsConfigured)
+                {
+                    var body = $"<p>Verificación de correo para solicitud de cuenta.</p><p>Tu código es: <b>{code}</b></p><p>Válido por 15 minutos.</p>";
+                    await emailSvc.SendAsync(correo, "Verificación de correo", body);
+                }
+
+                ViewBag.CorreoVerificacion = correo;
+                return View("VerificacionCodigo");
             }
 
             catch (Exception ex)
@@ -128,6 +154,90 @@ namespace Campus_Virtul_GRLL.Controllers
                 ViewBag.Areas = areas;
                 return View(modelo);
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerificarCodigo(string Correo, string Codigo)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(Correo) || string.IsNullOrWhiteSpace(Codigo))
+                {
+                    TempData["Error"] = "Correo y código son obligatorios.";
+                    ViewBag.CorreoVerificacion = Correo;
+                    return View("VerificacionCodigo");
+                }
+
+                var cacheKey = $"verif:{Correo.Trim().ToLower()}";
+                var pending = _cache.Get<PendingSolicitud>(cacheKey);
+                if (pending == null)
+                {
+                    TempData["Error"] = "El código ha expirado o no existe. Solicite nuevamente.";
+                    ViewBag.CorreoVerificacion = Correo;
+                    return View("VerificacionCodigo");
+                }
+
+                if (pending.Expira < DateTime.UtcNow)
+                {
+                    TempData["Error"] = "El código ha expirado. Solicite nuevamente.";
+                    _cache.Remove(cacheKey);
+                    ViewBag.CorreoVerificacion = Correo;
+                    return View("VerificacionCodigo");
+                }
+
+                if (!string.Equals(pending.Codigo, Codigo.Trim()))
+                {
+                    TempData["Error"] = "Código incorrecto. Verifique y vuelva a intentar.";
+                    ViewBag.CorreoVerificacion = Correo;
+                    return View("VerificacionCodigo");
+                }
+
+                // Código correcto: crear usuario y solicitud
+                var d = pending.Datos;
+                var nuevoUsuarioId = await _repo.CreateUserAsync(
+                    nombres: d.Nombres,
+                    correo: d.Correo,
+                    rolId: d.RolId,
+                    activo: false,
+                    plainPassword: null,
+                    apellidos: d.Apellidos,
+                    dni: d.DNI,
+                    telefono: d.Telefono,
+                    areaId: d.AreaId
+                );
+
+                await _repo.CreateSolicitudAsync(nuevoUsuarioId, "registro", "Solicitud de registro de usuario");
+                _cache.Remove(cacheKey);
+
+                TempData["Mensaje"] = "Correo verificado. Tu solicitud fue enviada al administrador.";
+                return RedirectToAction("Index", "Login");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al verificar código de correo");
+                TempData["Error"] = "Error inesperado al verificar el código.";
+                ViewBag.CorreoVerificacion = Correo;
+                return View("VerificacionCodigo");
+            }
+        }
+
+        private class PendingSolicitud
+        {
+            public string Codigo { get; set; } = string.Empty;
+            public DateTime Expira { get; set; }
+            public PendingSolicitudData Datos { get; set; } = new PendingSolicitudData();
+        }
+
+        private class PendingSolicitudData
+        {
+            public string Nombres { get; set; } = string.Empty;
+            public string Apellidos { get; set; } = string.Empty;
+            public string DNI { get; set; } = string.Empty;
+            public string Telefono { get; set; } = string.Empty;
+            public string Correo { get; set; } = string.Empty;
+            public Guid RolId { get; set; }
+            public Guid? AreaId { get; set; }
         }
     }
 }

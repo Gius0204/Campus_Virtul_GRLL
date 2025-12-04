@@ -156,7 +156,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (usuarioDb == null)
                 {
                     _logger.LogWarning($"Usuario no encontrado - correo: {DNI}");
-                    TempData["Error"] = "El DNI ingresado no está registrado en el sistema.";
+                    TempData["Error"] = "El correo ingresado no está registrado en el sistema.";
                     return View("Login");
                 }
 
