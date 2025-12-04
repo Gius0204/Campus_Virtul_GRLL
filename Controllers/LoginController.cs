@@ -227,9 +227,9 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (requireChange)
                 {
                     TempData["MensajeModal"] = "Debes cambiar tu contraseña temporal por una nueva.";
-                    ViewBag.EsPrimerInicio = true;
-                    ViewBag.NombreUsuario = usuarioDb.Value.nombres;
-                    return View("CambiarContrasena");
+                    TempData["EsPrimerInicio"] = true;
+                    TempData["NombreUsuario"] = usuarioDb.Value.nombres;
+                    return RedirectToAction("CambiarContrasena");
                 }
 
                 // Login exitoso normal
@@ -242,6 +242,31 @@ namespace Campus_Virtul_GRLL.Controllers
                 var errorMessage = ex.InnerException?.Message ?? ex.Message;
                 TempData["Error"] = $"Error inesperado: {errorMessage}";
                 return View("Login");
+            }
+        }
+
+        /// Mostrar formulario de cambio de contraseña (PRG)
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> CambiarContrasena()
+        {
+            try
+            {
+                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                Guid.TryParse(userIdStr, out var userId);
+
+                var requiereCambio = userId != Guid.Empty && await _repo.GetRequirePasswordChangeAsync(userId);
+
+                ViewBag.EsPrimerInicio = TempData.ContainsKey("EsPrimerInicio") ? true : requiereCambio;
+                ViewBag.NombreUsuario = TempData.ContainsKey("NombreUsuario") ? (TempData["NombreUsuario"]?.ToString() ?? User.Identity?.Name ?? "Usuario") : (User.Identity?.Name ?? "Usuario");
+
+                return View("CambiarContrasena");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al preparar vista de cambio de contraseña");
+                TempData["Error"] = "No se pudo cargar el formulario de cambio de contraseña.";
+                return RedirectToAction("Index");
             }
         }
 
