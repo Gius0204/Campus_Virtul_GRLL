@@ -65,7 +65,6 @@ try
             Username = dbUser,
             Password = dbPassword,
             SslMode = SslMode.Require,
-            TrustServerCertificate = true
         };
 
         using var conn = new NpgsqlConnection(csb.ConnectionString);

@@ -112,7 +112,6 @@ namespace Campus_Virtul_GRLL.Controllers
                         Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                         Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                         SslMode = Npgsql.SslMode.Require,
-                        TrustServerCertificate = true
                     }.ConnectionString);
                     await conn.OpenAsync();
                     using var cmd = new Npgsql.NpgsqlCommand("insert into public.solicitudes (id, nombre, correo, estado, creado_en) values (gen_random_uuid(), @n, @c, 'pendiente', now())", conn);
@@ -194,7 +193,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 if (!contrasenaCorrecta)
                 {
                     _logger.LogWarning($"Contraseña incorrecta - correo: {DNI}");
-                    TempData["Error"] = "DNI o contraseña incorrectos.";
+                    TempData["Error"] = "Correo o contraseña incorrectos.";
                     return View("Login");
                 }
 

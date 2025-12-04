@@ -27,12 +27,6 @@
 
         <div class="header-right">
 
-            <!-- Notificaciones -->
-            <button class="header-icon-btn" aria-label="Notificaciones">
-                🔔
-                <span class="badge">3</span>
-            </button>
-
             <!-- Perfil de usuario -->
             <a class="header-icon-btn" aria-label="Perfil de usuario" href="@Url.Action("Index","Perfil")" title="Mi Perfil">
                 👤
@@ -61,8 +55,8 @@
                         <span>Dashboard</span>
                     </a>
                 </li>
-                @* Catálogo visible para Practicante y Profesor *@
-                @if (rol == "Practicante" || rol == "Profesor" || rol == "Administrador") {
+                @* Catálogo visible para Administrador y Practicante (no para Profesor) *@
+                @if (rol == "Practicante" || rol == "Administrador") {
                     <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == (rol == "Practicante" ? "Practicante" : "Cursos") && ViewContext.RouteData.Values["action"]?.ToString() == (rol == "Practicante" ? "Catalogo" : "Index") ? "active" : "")">
                         <a href="@(rol == "Practicante" ? Url.Action("Catalogo", "Practicante") : Url.Action("Index", "Cursos"))">
                             <span class="icon">📚</span>

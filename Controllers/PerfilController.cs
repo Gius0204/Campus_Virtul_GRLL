@@ -52,7 +52,6 @@ namespace Campus_Virtul_GRLL.Controllers
                     Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                     Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                     SslMode = Npgsql.SslMode.Require,
-                    TrustServerCertificate = true
                 }.ConnectionString);
                 await conn.OpenAsync();
                 using var cmd = new Npgsql.NpgsqlCommand("update public.usuarios set nombres=@n, apellidos=@ap, dni=@dni, telefono=@tel, area_id=@ar, actualizado_en=now() where id=@id", conn);

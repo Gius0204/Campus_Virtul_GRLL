@@ -160,7 +160,6 @@ namespace Campus_Virtul_GRLL.Controllers
                     Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                     Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                     SslMode = Npgsql.SslMode.Require,
-                    TrustServerCertificate = true
                 }.ConnectionString);
                 await conn.OpenAsync();
                      using var cmd = new Npgsql.NpgsqlCommand(@"select s.sesion_id, s.titulo, s.tipo, s.estado, s.texto_contenido,
@@ -411,7 +410,6 @@ namespace Campus_Virtul_GRLL.Controllers
                         Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                         Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                         SslMode = Npgsql.SslMode.Require,
-                        TrustServerCertificate = true
                     }.ConnectionString);
                     await conn.OpenAsync();
                     foreach (var a in adjuntos)
@@ -484,7 +482,6 @@ namespace Campus_Virtul_GRLL.Controllers
                     Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                     Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                     SslMode = Npgsql.SslMode.Require,
-                    TrustServerCertificate = true
                 }.ConnectionString))
                 {
                     await conn.OpenAsync();
@@ -669,7 +666,6 @@ namespace Campus_Virtul_GRLL.Controllers
                     Username = Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                     Password = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                     SslMode = Npgsql.SslMode.Require,
-                    TrustServerCertificate = true
                 }.ConnectionString);
                 await conn.OpenAsync();
                 using var cmd = new Npgsql.NpgsqlCommand(@"select sesion_id, tipo, archivo_url, archivo_mime, archivo_size_bytes, video_url, video_mime, video_size_bytes, video_duracion_segundos from public.subsecciones where id=@id", conn);

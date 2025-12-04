@@ -35,7 +35,6 @@ namespace Campus_Virtul_GRLL.Services
                 Username = _user,
                 Password = _password,
                 SslMode = SslMode.Require,
-                TrustServerCertificate = true
             };
             return new NpgsqlConnection(csb.ConnectionString);
         }

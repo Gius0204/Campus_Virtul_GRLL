@@ -140,7 +140,6 @@ namespace Campus_Virtul_GRLL.Controllers
                         Username = System.Environment.GetEnvironmentVariable("SUPABASE_DB_USER") ?? "postgres",
                         Password = System.Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
                         SslMode = Npgsql.SslMode.Require,
-                        TrustServerCertificate = true
                     };
                     using var conn = new Npgsql.NpgsqlConnection(csb.ConnectionString);
                     await conn.OpenAsync();

@@ -87,18 +87,24 @@
                     }
                     if (!string.IsNullOrWhiteSpace(Model.Seleccionada.ArchivoUrlSigned))
                     {
+                        var previewId = $"preview-{Model.Seleccionada.Id}";
                         <div class="mb-3">
-                            <div class="small text-muted mb-1">Archivo</div>
-                            @if ((Model.Seleccionada.ArchivoMime ?? string.Empty).StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (Model.Seleccionada.ArchivoUrlSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
-                            {
-                                <div class="ratio" style="--bs-aspect-ratio: 140%;">
-                                    <iframe src="@Model.Seleccionada.ArchivoUrlSigned#toolbar=1&navpanes=0" style="width:100%; height:100%; border:0;"></iframe>
-                                </div>
-                            }
-                            else
-                            {
-                                <a class="btn btn-outline-primary" target="_blank" href="@Model.Seleccionada.ArchivoUrlSigned">Descargar</a>
-                            }
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="small text-muted">Archivo</div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#@previewId">Mostrar/Ocultar vista previa</button>
+                            </div>
+                            <div id="@previewId" class="collapse show mt-2">
+                                @if ((Model.Seleccionada.ArchivoMime ?? string.Empty).StartsWith("application/pdf", StringComparison.OrdinalIgnoreCase) || (Model.Seleccionada.ArchivoUrlSigned?.ToLowerInvariant().EndsWith(".pdf") ?? false))
+                                {
+                                    <div class="ratio" style="--bs-aspect-ratio: 140%;">
+                                        <iframe src="@Model.Seleccionada.ArchivoUrlSigned#toolbar=1&navpanes=0" style="width:100%; height:100%; border:0;"></iframe>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-outline-primary" target="_blank" href="@Model.Seleccionada.ArchivoUrlSigned">Descargar</a>
+                                }
+                            </div>
                             <div class="text-muted small mt-1">@Model.Seleccionada.ArchivoMime · @(Model.Seleccionada.ArchivoSize ?? 0) bytes</div>
                         </div>
                     }
@@ -119,10 +125,11 @@
                                         <span class="ms-2">Puntaje máximo: @Model.Seleccionada.MaxPuntaje</span>
                                     }
                                 </div>
-                                <div>
-                                    @if (calificada)
+                                <div class="text-end">
+                                    @if (calificada && Model.Seleccionada.EntregaCalificacion.HasValue)
                                     {
-                                        <span class="badge rounded-pill text-bg-success">Calificada: @Model.Seleccionada.EntregaCalificacion</span>
+                                        <div class="display-6 fw-bold mb-0">@Model.Seleccionada.EntregaCalificacion</div>
+                                        <div class="small text-muted">Calificación</div>
                                     }
                                     else if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaEstado))
                                     {
@@ -141,9 +148,15 @@
 
                             @if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaArchivoUrlSigned))
                             {
+                                var entregaPreviewId = $"entrega-{Model.Seleccionada.Id}";
                                 <div class="mb-3">
-                                    <div class="small text-muted mb-1">Tu archivo entregado</div>
-                                    <a class="btn btn-outline-primary btn-sm" target="_blank" href="@Model.Seleccionada.EntregaArchivoUrlSigned">Abrir</a>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div class="small text-muted mb-1">Tu archivo entregado</div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#@entregaPreviewId">Mostrar/Ocultar vista previa</button>
+                                    </div>
+                                    <div id="@entregaPreviewId" class="collapse show mt-2">
+                                        <a class="btn btn-outline-primary btn-sm" target="_blank" href="@Model.Seleccionada.EntregaArchivoUrlSigned">Abrir</a>
+                                    </div>
                                 </div>
                             }
                             @if (!string.IsNullOrWhiteSpace(Model.Seleccionada.EntregaEnlaceUrl))

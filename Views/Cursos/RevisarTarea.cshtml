@@ -32,7 +32,7 @@
                     <th>Entregado</th>
                     <th>Archivo</th>
                     <th>Enlace</th>
-                    <th style="width:180px">Calificación (0-20)</th>
+                    <th style="width:220px">Calificación (0-20)</th>
                     <th></th>
                 </tr>
             </thead>
@@ -71,18 +71,27 @@
                             <input type="hidden" name="idCurso" value="@curso.Item1" />
                             <input type="hidden" name="subseccionId" value="@subseccionId" />
                             <input type="hidden" name="entregaId" value="@e.entregaId" />
-                            <input type="number" step="0.5" min="0" max="20" name="calificacion" value="@(e.calificacion ?? 0)" class="form-control form-control-sm" />
-                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            @if (e.calificacion.HasValue)
+                            {
+                                <input type="number" step="0.5" min="0" max="20" name="calificacion" value="@e.calificacion.Value.ToString("0.##")" class="form-control form-control-sm" />
+                                <span class="text-muted small">Última: @e.calificacion.Value.ToString("0.##")</span>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Editar</button>
+                            }
+                            else
+                            {
+                                <input type="number" step="0.5" min="0" max="20" name="calificacion" class="form-control form-control-sm" placeholder="0-20" />
+                                <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                            }
                         </form>
                     </td>
                     <td>
+                        @if (e.calificacion.HasValue)
+                        {
+                            <span class="badge text-bg-info">Nota: @e.calificacion.Value.ToString("0.##")</span>
+                        }
                         @if (e.calificadoEn.HasValue)
                         {
-                            <span class="text-muted small">Calificado: @e.calificadoEn.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
-                        }
-                        else if (e.calificacion.HasValue)
-                        {
-                            <span class="text-muted small">Calificación actual: @e.calificacion</span>
+                            <div class="text-muted small mt-1">Calificado: @e.calificadoEn.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
                         }
                     </td>
                 </tr>

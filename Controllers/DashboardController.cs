@@ -88,30 +88,29 @@ namespace Campus_Virtul_GRLL.Controllers
             var cursosAsignados = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
             int totalCursos = 0;
             int totalPracticantes = 0;
+            var practicantesUnicos = new HashSet<Guid>();
             if (Guid.TryParse(profesorIdStr, out var profesorId))
             {
                 cursosAsignados = repo.GetCursosPorProfesorAsync(profesorId).GetAwaiter().GetResult();
                 totalCursos = cursosAsignados.Count;
-
-                // Intentar contar practicantes inscritos a los cursos del profesor
-                try
+                // Contar practicantes DISTINTOS por todos los cursos del profesor
+                foreach (var curso in cursosAsignados)
                 {
-                    using var conn = (new Services.SupabaseRepository()).GetType().GetMethod("CreateConnection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(repo, null) as Npgsql.NpgsqlConnection;
-                    conn!.Open();
-                    using var cmd = new Npgsql.NpgsqlCommand(@"select count(*)
-                        from public.inscripciones i
-                        join public.curso_profesores cp on cp.curso_id = i.curso_id
-                        join public.usuarios u on u.id = i.usuario_id
-                        join public.roles r on r.id = u.rol_id
-                        where cp.profesor_id = @pid and lower(r.nombre) = 'practicante'", conn);
-                    cmd.Parameters.AddWithValue("pid", profesorId);
-                    var result = cmd.ExecuteScalar();
-                    totalPracticantes = Convert.ToInt32(result);
+                    try
+                    {
+                        var participantes = repo.GetParticipantesCursoAsync(curso.id).GetAwaiter().GetResult();
+                        foreach (var p in participantes)
+                        {
+                            if (string.Equals(p.rol, "Practicante", StringComparison.OrdinalIgnoreCase))
+                                practicantesUnicos.Add(p.id);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignorar fallos puntuales y continuar con otros cursos
+                    }
                 }
-                catch
-                {
-                    totalPracticantes = 0;
-                }
+                totalPracticantes = practicantesUnicos.Count;
             }
 
             ViewBag.TotalCursos = totalCursos;
