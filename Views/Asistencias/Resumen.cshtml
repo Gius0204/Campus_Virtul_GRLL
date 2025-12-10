@@ -5,23 +5,78 @@
 }
 
 <div class="content-card">
-    <h5>Resumen de Asistencias</h5>
-    <p class="text-muted">Totales del curso seleccionado</p>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div>
+            <h5 class="mb-0">Resumen de Asistencias</h5>
+            <p class="text-muted mb-0">Totales del curso seleccionado</p>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" onclick="history.back()">Regresar</button>
+    </div>
 
-    <div style="max-width:600px">
-        <canvas id="chart"></canvas>
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Conteos</h6>
+                    <div style="max-width:600px">
+                        <canvas id="chartBar"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Porcentajes</h6>
+                    <div class="d-flex align-items-center">
+                        <div style="max-width:300px" class="me-3">
+                            <canvas id="chartPie"></canvas>
+                        </div>
+                        <div>
+                            <ul class="list-unstyled small mb-0" id="pieLegend"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const data = {
-    labels: ['Presente','Tardanza','Ausente','Justificado'],
-    datasets: [{
-        label: 'Asistencias',
-        backgroundColor: ['#2ecc71','#f1c40f','#e74c3c','#3498db'],
-        data: [@r.presente, @r.tardanza, @r.ausente, @r.justificado]
-    }]
-};
-new Chart(document.getElementById('chart'), { type: 'bar', data });
+const labels = ['Presente','Tardanza','Ausente','Justificado'];
+const bg = ['#2ecc71','#f1c40f','#e74c3c','#3498db'];
+const counts = [@r.presente, @r.tardanza, @r.ausente, @r.justificado];
+const total = counts.reduce((a,b)=>a+b,0);
+
+new Chart(document.getElementById('chartBar'), {
+    type: 'bar',
+    data: {
+        labels,
+        datasets: [{ label: 'Asistencias', backgroundColor: bg, data: counts }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
+
+const chartPie = new Chart(document.getElementById('chartPie'), {
+    type: 'doughnut',
+    data: {
+        labels,
+        datasets: [{ data: counts, backgroundColor: bg }]
+    },
+    options: {
+        cutout: '60%',
+        plugins: { legend: { display: false } }
+    }
+});
+
+// Build legend with counts and percentages
+const legend = document.getElementById('pieLegend');
+legend.innerHTML = labels.map((l, i) => {
+    const pct = total ? ((counts[i] / total) * 100).toFixed(1) : '0.0';
+    return `<li class="mb-1"><span style="display:inline-block;width:10px;height:10px;background:${bg[i]};border-radius:50%;margin-right:8px"></span>${l}: <strong>${counts[i]}</strong> (${pct}%)`;
+}).join('');
 </script>
