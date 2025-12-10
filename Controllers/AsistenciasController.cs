@@ -24,10 +24,23 @@ namespace Campus_Virtul_GRLL.Controllers
         {
             var cursoId = idCurso;
             var f = fecha ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
-            var participantes = await _repo.GetParticipantesCursoAsync(cursoId);
+            var participantesAll = await _repo.GetParticipantesCursoAsync(cursoId);
+            var participantes = participantesAll.Where(p =>
+                string.Equals(p.rol, "Practicante", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.rol, "Colaborador", StringComparison.OrdinalIgnoreCase)
+            ).ToList();
             ViewBag.CursoId = cursoId;
             ViewBag.Fecha = f;
             ViewBag.Participantes = participantes;
+            // Pasar horario del día seleccionado para visualización
+            var horario = await _repo.GetHorarioCursoAsync(cursoId);
+            var diaNombre = DiaTextoDeFecha(f);
+            var h = horario.FirstOrDefault(x => string.Equals(x.dia, diaNombre, StringComparison.OrdinalIgnoreCase));
+            if (h.inicio != default && h.fin != default)
+            {
+                ViewBag.HorarioInicio = h.inicio;
+                ViewBag.HorarioFin = h.fin;
+            }
             return View();
         }
 
@@ -39,6 +52,18 @@ namespace Campus_Virtul_GRLL.Controllers
             try
             {
                 var profesorId = User.GetUserIdGuid()!.Value;
+                // Si no se especifican horas, tomar del horario del curso para ese día
+                if (horaInicio == null || horaFin == null)
+                {
+                    var horario = await _repo.GetHorarioCursoAsync(idCurso);
+                    var diaNombre = DiaTextoDeFecha(fecha);
+                    var h = horario.FirstOrDefault(x => string.Equals(x.dia, diaNombre, StringComparison.OrdinalIgnoreCase));
+                    if (h.inicio != default && h.fin != default)
+                    {
+                        horaInicio ??= TimeOnly.FromTimeSpan(h.inicio);
+                        horaFin ??= TimeOnly.FromTimeSpan(h.fin);
+                    }
+                }
                 var asistenciaId = await _repo.UpsertAsistenciaAsync(idCurso, profesorId, fecha, horaInicio, horaFin);
                 for (int i = 0; i < usuarios.Count; i++)
                 {
@@ -55,6 +80,22 @@ namespace Campus_Virtul_GRLL.Controllers
                 TempData["Error"] = ex.Message;
             }
             return RedirectToAction("Tomar", new { idCurso, fecha });
+        }
+
+        private static string DiaTextoDeFecha(DateOnly fecha)
+        {
+            // Mapear al texto en español para coincidir con horario
+            return fecha.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "lunes",
+                DayOfWeek.Tuesday => "martes",
+                DayOfWeek.Wednesday => "miercoles",
+                DayOfWeek.Thursday => "jueves",
+                DayOfWeek.Friday => "viernes",
+                DayOfWeek.Saturday => "sabado",
+                DayOfWeek.Sunday => "domingo",
+                _ => "lunes"
+            };
         }
 
         // ---- Configurar horario del curso ----

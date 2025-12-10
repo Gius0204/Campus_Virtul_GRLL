@@ -4,6 +4,8 @@
     var participantes = (IEnumerable<(System.Guid id, string nombres, string correo, string rol)>)ViewBag.Participantes ?? Enumerable.Empty<(System.Guid, string, string, string)>();
     var fecha = (DateOnly)ViewBag.Fecha;
     var cursoId = (System.Guid)ViewBag.CursoId;
+    var horarioInicio = (TimeSpan?)ViewBag.HorarioInicio;
+    var horarioFin = (TimeSpan?)ViewBag.HorarioFin;
 }
 
 <div class="content-card">
@@ -11,18 +13,34 @@
     <form asp-action="Registrar" asp-controller="Asistencias" method="post">
         @Html.AntiForgeryToken()
         <input type="hidden" name="idCurso" value="@cursoId" />
+        @if (TempData["Mensaje"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @TempData["Mensaje"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
         <div class="row mb-3">
             <div class="col-md-3">
                 <label class="form-label">Fecha</label>
                 <input type="date" class="form-control" name="fecha" value="@fecha.ToString("yyyy-MM-dd")" />
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Hora inicio</label>
-                <input type="time" class="form-control" name="horaInicio" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Hora fin</label>
-                <input type="time" class="form-control" name="horaFin" />
+            <div class="col-md-9 d-flex align-items-end">
+                @if (horarioInicio.HasValue && horarioFin.HasValue)
+                {
+                    <small class="text-muted">Se usará el horario del curso: @horarioInicio.Value.ToString("hh\\:mm") - @horarioFin.Value.ToString("hh\\:mm")</small>
+                }
+                else
+                {
+                    <small class="text-warning">No hay horario configurado para este día.</small>
+                }
             </div>
         </div>
 
