@@ -884,15 +884,29 @@ namespace Campus_Virtul_GRLL.Services
 
         public async Task<List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>> GetCursosPorPracticanteAsync(Guid practicanteId)
         {
+            // Incluye cursos asignados por tabla correcta (curso_practicantes)
+            // y fallback por registros mal insertados en curso_colaboradores con rol 'practicante'
             var list = new List<(Guid, string, string?, string, DateTime)>();
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(@"select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador'), c.creado_en
-                                               from public.curso_practicantes cp
-                                               join public.cursos c on c.id = cp.curso_id
-                                               where cp.practicante_id = @pid
-                                               order by c.creado_en desc", conn);
-            cmd.Parameters.AddWithValue("pid", practicanteId);
+            using var cmd = new NpgsqlCommand(@"
+                (
+                    select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador') as estado, c.creado_en
+                    from public.curso_practicantes cp
+                    join public.cursos c on c.id = cp.curso_id
+                    where cp.practicante_id = @uid
+                )
+                union
+                (
+                    select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador') as estado, c.creado_en
+                    from public.curso_colaboradores cc
+                    join public.usuarios u on u.id = cc.colaborador_id
+                    join public.roles r on r.id = u.rol_id
+                    join public.cursos c on c.id = cc.curso_id
+                    where cc.colaborador_id = @uid and lower(r.nombre)='practicante'
+                )
+                order by creado_en desc", conn);
+            cmd.Parameters.AddWithValue("uid", practicanteId);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -903,15 +917,29 @@ namespace Campus_Virtul_GRLL.Services
 
         public async Task<List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>> GetCursosPorColaboradorAsync(Guid colaboradorId)
         {
+            // Incluye cursos asignados por tabla correcta (curso_colaboradores)
+            // y fallback por registros mal insertados en curso_practicantes con rol 'colaborador'
             var list = new List<(Guid, string, string?, string, DateTime)>();
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand(@"select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador'), c.creado_en
-                                               from public.curso_colaboradores cc
-                                               join public.cursos c on c.id = cc.curso_id
-                                               where cc.colaborador_id = @cid
-                                               order by c.creado_en desc", conn);
-            cmd.Parameters.AddWithValue("cid", colaboradorId);
+            using var cmd = new NpgsqlCommand(@"
+                (
+                    select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador') as estado, c.creado_en
+                    from public.curso_colaboradores cc
+                    join public.cursos c on c.id = cc.curso_id
+                    where cc.colaborador_id = @uid
+                )
+                union
+                (
+                    select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador') as estado, c.creado_en
+                    from public.curso_practicantes cp
+                    join public.usuarios u on u.id = cp.practicante_id
+                    join public.roles r on r.id = u.rol_id
+                    join public.cursos c on c.id = cp.curso_id
+                    where cp.practicante_id = @uid and lower(r.nombre)='colaborador'
+                )
+                order by creado_en desc", conn);
+            cmd.Parameters.AddWithValue("uid", colaboradorId);
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
