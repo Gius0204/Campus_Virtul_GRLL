@@ -7,7 +7,10 @@
     string[] diasSemana = new[]{"lunes","martes","miercoles","jueves","viernes","sabado","domingo"};
 }
 <div class="container-fluid">
-    <h1 class="page-title mb-2">Configurar horario del curso</h1>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 class="page-title mb-0">Configurar horario del curso</h1>
+        <button type="button" class="btn btn-outline-secondary" onclick="history.back()">Regresar</button>
+    </div>
     @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
     @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
 
