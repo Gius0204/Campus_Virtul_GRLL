@@ -50,6 +50,9 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-participantes" data-bs-toggle="tab" data-bs-target="#participantes" type="button" role="tab">Lista de Participantes</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-asistencias" data-bs-toggle="tab" data-bs-target="#asistencias" type="button" role="tab">Asistencias</button>
+            </li>
         </ul>
         <div class="tab-content" id="cursoTabsContent">
             <!-- Contenido del Curso -->
@@ -257,6 +260,96 @@
                     }
                 </div>
                 
+            </div>
+
+            <!-- Asistencias -->
+            <div class="tab-pane fade" id="asistencias" role="tabpanel">
+                <div class="content-card mb-3">
+                    <h5>Asistencias del Curso</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card card-body">
+                                <h6 class="mb-2">Horario configurado</h6>
+                                @{ var horario = (IEnumerable<(string dia, TimeSpan inicio, TimeSpan fin)>)ViewBag.Horario ?? Enumerable.Empty<(string dia, TimeSpan inicio, TimeSpan fin)>(); }
+                                @if (!horario.Any())
+                                {
+                                    <p class="text-muted">No hay horario configurado para este curso.</p>
+                                    @if (puedeEditar)
+                                    {
+                                        <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Configurar","Asistencias", new { idCurso = c.id })">Configurar horario</a>
+                                    }
+                                }
+                                else
+                                {
+                                    <ul class="list-unstyled mb-2">
+                                        @foreach (var h in horario.OrderBy(x=>x.dia))
+                                        {
+                                            <li><span class="badge bg-secondary text-light text-capitalize">@h.dia</span> @h.inicio.ToString("hh\\:mm") - @h.fin.ToString("hh\\:mm")</li>
+                                        }
+                                    </ul>
+                                    @if (puedeEditar)
+                                    {
+                                        <a class="btn btn-outline-secondary btn-sm" href="@Url.Action("Configurar","Asistencias", new { idCurso = c.id })">Editar horario</a>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card card-body">
+                                <h6 class="mb-2">Crear nueva asistencia</h6>
+                                <form method="post" asp-controller="Asistencias" asp-action="Crear">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="idCurso" value="@c.id" />
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Fecha</label>
+                                            <input type="date" class="form-control" name="fecha" required />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Día del horario</label>
+                                            <select name="dia" class="form-select" required>
+                                                @foreach (var h in horario)
+                                                {
+                                                    <option value="@h.dia">@h.dia</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-12 text-end">
+                                            <button class="btn btn-primary btn-sm" type="submit">Crear asistencia</button>
+                                        </div>
+                                    </div>
+                                    <p class="text-muted mt-2">Solo podrás crear asistencias en días permitidos; la fecha no puede repetirse.</p>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+                    <h6 class="mb-2">Asistencias creadas</h6>
+                    @{ var asistencias = (IEnumerable<(Guid id, DateTime fecha, string dia)>)ViewBag.Asistencias ?? Enumerable.Empty<(Guid id, DateTime fecha, string dia)>(); }
+                    @if (!asistencias.Any())
+                    {
+                        <p class="text-muted">Aún no hay asistencias para este curso.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead><tr><th>Fecha</th><th>Día</th><th>Acciones</th></tr></thead>
+                            <tbody>
+                                @foreach (var a in asistencias.OrderByDescending(x=>x.fecha))
+                                {
+                                    <tr>
+                                        <td>@a.fecha.ToString("yyyy-MM-dd")</td>
+                                        <td class="text-capitalize">@a.dia</td>
+                                        <td>
+                                            <a class="btn btn-outline-primary btn-sm" href="@Url.Action("Tomar","Asistencias", new { asistenciaId = a.id, idCurso = c.id })">Tomar asistencia</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
             </div>
         </div>
 

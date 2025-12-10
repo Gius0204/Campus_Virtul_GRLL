@@ -757,6 +757,22 @@ namespace Campus_Virtul_GRLL.Services
                     list.Add((r3.GetGuid(0), r3.GetString(1), r3.IsDBNull(2)?"":r3.GetString(2), r3.GetString(3)));
                 }
             }
+            // Fallback: colaboradores mal insertados en curso_practicantes
+            using (var cmdFallbackCol = new NpgsqlCommand(@"select u.id, u.nombres, u.correo, 'Colaborador' as rol
+                                                           from public.curso_practicantes cp
+                                                           join public.usuarios u on u.id = cp.practicante_id
+                                                           join public.roles r on r.id = u.rol_id
+                                                           where cp.curso_id=@cid and lower(r.nombre)='colaborador'", conn))
+            {
+                cmdFallbackCol.Parameters.AddWithValue("cid", cursoId);
+                using var rf = await cmdFallbackCol.ExecuteReaderAsync();
+                while (await rf.ReadAsync())
+                {
+                    var id = rf.GetGuid(0);
+                    if (!list.Any(x => x.Item1 == id && x.Item4 == "Colaborador"))
+                        list.Add((id, rf.GetString(1), rf.IsDBNull(2)?"":rf.GetString(2), rf.GetString(3)));
+                }
+            }
             return list;
         }
 
@@ -815,16 +831,42 @@ namespace Campus_Virtul_GRLL.Services
             using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // Insertar relación curso-practicante a partir de la solicitud
-                using (var cmdIns = new NpgsqlCommand(@"insert into public.curso_practicantes (curso_id, practicante_id)
-                                                        select s.detalle::uuid, s.usuario_id
-                                                        from public.solicitudes s
-                                                        where s.id = @sid
-                                                        on conflict do nothing", conn, (NpgsqlTransaction)tx))
+                // Determinar rol del usuario de la solicitud
+                string rolUsuario = "";
+                using (var cmdRol = new NpgsqlCommand(@"select lower(r.nombre)
+                                                       from public.solicitudes s
+                                                       join public.usuarios u on u.id = s.usuario_id
+                                                       join public.roles r on r.id = u.rol_id
+                                                       where s.id=@sid
+                                                       limit 1", conn, (NpgsqlTransaction)tx))
                 {
-                    cmdIns.Parameters.AddWithValue("sid", solicitudId);
-                    await cmdIns.ExecuteNonQueryAsync();
+                    cmdRol.Parameters.AddWithValue("sid", solicitudId);
+                    var r = await cmdRol.ExecuteScalarAsync();
+                    if (r is string sr) rolUsuario = sr.Trim().ToLowerInvariant();
                 }
+
+                if (rolUsuario == "colaborador")
+                {
+                    using var cmdInsCol = new NpgsqlCommand(@"insert into public.curso_colaboradores (curso_id, colaborador_id)
+                                                             select s.detalle::uuid, s.usuario_id
+                                                             from public.solicitudes s
+                                                             where s.id = @sid
+                                                             on conflict do nothing", conn, (NpgsqlTransaction)tx);
+                    cmdInsCol.Parameters.AddWithValue("sid", solicitudId);
+                    await cmdInsCol.ExecuteNonQueryAsync();
+                }
+                else
+                {
+                    // Default a practicante (incluye cuando rol es 'practicante')
+                    using var cmdInsPrac = new NpgsqlCommand(@"insert into public.curso_practicantes (curso_id, practicante_id)
+                                                              select s.detalle::uuid, s.usuario_id
+                                                              from public.solicitudes s
+                                                              where s.id = @sid
+                                                              on conflict do nothing", conn, (NpgsqlTransaction)tx);
+                    cmdInsPrac.Parameters.AddWithValue("sid", solicitudId);
+                    await cmdInsPrac.ExecuteNonQueryAsync();
+                }
+
                 // Marcar solicitud como aprobada
                 using (var cmdUpd = new NpgsqlCommand("update public.solicitudes set estado='aprobada' where id=@sid", conn, (NpgsqlTransaction)tx))
                 {
@@ -895,10 +937,28 @@ namespace Campus_Virtul_GRLL.Services
             int profesores = 0, practicantes = 0, colaboradores = 0;
             using (var c1 = new NpgsqlCommand("select count(*) from public.curso_profesores where curso_id=@c", conn))
             { c1.Parameters.AddWithValue("c", cursoId); profesores = Convert.ToInt32(await c1.ExecuteScalarAsync()); }
-            using (var c2 = new NpgsqlCommand("select count(*) from public.curso_practicantes where curso_id=@c", conn))
+            // Practicantes reales + practicantes mal insertados en curso_colaboradores
+            using (var c2 = new NpgsqlCommand(@"select count(*) from public.curso_practicantes cp
+                                               join public.usuarios u on u.id = cp.practicante_id
+                                               join public.roles r on r.id = u.rol_id
+                                               where cp.curso_id=@c and lower(r.nombre)='practicante'", conn))
             { c2.Parameters.AddWithValue("c", cursoId); practicantes = Convert.ToInt32(await c2.ExecuteScalarAsync()); }
-            using (var c3 = new NpgsqlCommand("select count(*) from public.curso_colaboradores where curso_id=@c", conn))
+            using (var c2b = new NpgsqlCommand(@"select count(*) from public.curso_colaboradores cc
+                                                join public.usuarios u on u.id = cc.colaborador_id
+                                                join public.roles r on r.id = u.rol_id
+                                                where cc.curso_id=@c and lower(r.nombre)='practicante'", conn))
+            { c2b.Parameters.AddWithValue("c", cursoId); practicantes += Convert.ToInt32(await c2b.ExecuteScalarAsync()); }
+            // Colaboradores reales + colaboradores mal insertados en curso_practicantes
+            using (var c3 = new NpgsqlCommand(@"select count(*) from public.curso_colaboradores cc
+                                               join public.usuarios u on u.id = cc.colaborador_id
+                                               join public.roles r on r.id = u.rol_id
+                                               where cc.curso_id=@c and lower(r.nombre)='colaborador'", conn))
             { c3.Parameters.AddWithValue("c", cursoId); colaboradores = Convert.ToInt32(await c3.ExecuteScalarAsync()); }
+            using (var c3b = new NpgsqlCommand(@"select count(*) from public.curso_practicantes cp
+                                                join public.usuarios u on u.id = cp.practicante_id
+                                                join public.roles r on r.id = u.rol_id
+                                                where cp.curso_id=@c and lower(r.nombre)='colaborador'", conn))
+            { c3b.Parameters.AddWithValue("c", cursoId); colaboradores += Convert.ToInt32(await c3b.ExecuteScalarAsync()); }
             return (profesores, practicantes, colaboradores);
         }
 
@@ -1162,6 +1222,118 @@ namespace Campus_Virtul_GRLL.Services
                 list.Add((fecha, hi, hf, estado, just));
             }
             return list;
+        }
+
+        // ----- Horarios por curso -----
+        public async Task<List<(string dia, TimeSpan inicio, TimeSpan fin)>> GetHorarioCursoAsync(Guid cursoId)
+        {
+            var list = new List<(string, TimeSpan, TimeSpan)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select 
+                        CASE 
+                          WHEN dia_semana=1 THEN 'lunes'
+                          WHEN dia_semana=2 THEN 'martes'
+                          WHEN dia_semana=3 THEN 'miercoles'
+                          WHEN dia_semana=4 THEN 'jueves'
+                          WHEN dia_semana=5 THEN 'viernes'
+                          WHEN dia_semana=6 THEN 'sabado'
+                          WHEN dia_semana=7 THEN 'domingo'
+                          ELSE 'lunes'
+                        END as dia,
+                        hora_inicio, hora_fin 
+                     from public.curso_horarios where curso_id=@c order by dia_semana, hora_inicio", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var dia = r.GetString(0);
+                var hi = r.GetTimeSpan(1);
+                var hf = r.GetTimeSpan(2);
+                list.Add((dia, hi, hf));
+            }
+            return list;
+        }
+
+        public async Task ReplaceHorarioCursoAsync(Guid cursoId, string[] dias, string[] inicio, string[] fin)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using (var tx = await conn.BeginTransactionAsync())
+            {
+                using (var del = new NpgsqlCommand("delete from public.curso_horarios where curso_id=@c", conn, (NpgsqlTransaction)tx))
+                {
+                    del.Parameters.AddWithValue("c", cursoId);
+                    await del.ExecuteNonQueryAsync();
+                }
+                for (int i = 0; i < dias.Length; i++)
+                {
+                    using var ins = new NpgsqlCommand(@"insert into public.curso_horarios(curso_id, dia_semana, hora_inicio, hora_fin)
+                                                         values(@c, @d, @hi, @hf)", conn, (NpgsqlTransaction)tx);
+                    ins.Parameters.AddWithValue("c", cursoId);
+                    ins.Parameters.AddWithValue("d", DiaTextoAEntero(dias[i]));
+                    ins.Parameters.AddWithValue("hi", TimeSpan.Parse(inicio[i]));
+                    ins.Parameters.AddWithValue("hf", TimeSpan.Parse(fin[i]));
+                    await ins.ExecuteNonQueryAsync();
+                }
+                await tx.CommitAsync();
+            }
+        }
+
+        private static int DiaTextoAEntero(string dia)
+        {
+            dia = (dia ?? "lunes").Trim().ToLowerInvariant();
+            return dia switch
+            {
+                "lunes" => 1,
+                "martes" => 2,
+                "miercoles" => 3,
+                "jueves" => 4,
+                "viernes" => 5,
+                "sabado" => 6,
+                "domingo" => 7,
+                _ => 1
+            };
+        }
+
+        // ----- Asistencias por curso -----
+        public async Task<List<(Guid id, DateTime fecha, string dia)>> GetAsistenciasCursoAsync(Guid cursoId)
+        {
+            var list = new List<(Guid, DateTime, string)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select id, fecha, dia_semana from public.asistencias where curso_id=@c order by fecha desc", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add((r.GetGuid(0), r.GetDateTime(1), r.GetString(2)));
+            }
+            return list;
+        }
+
+        public async Task<Guid> CrearAsistenciaAsync(Guid cursoId, DateTime fecha, Guid profesorId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"insert into public.asistencias(id, curso_id, profesor_id, fecha)
+                                               values(gen_random_uuid(), @c, @p, @f)
+                                               on conflict (curso_id, fecha) do nothing
+                                               returning id", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("p", profesorId);
+            cmd.Parameters.AddWithValue("f", fecha.Date);
+            var idObj = await cmd.ExecuteScalarAsync();
+            if (idObj == null)
+            {
+                // Already exists; fetch existing id
+                using var get = new NpgsqlCommand("select id from public.asistencias where curso_id=@c and fecha=@f limit 1", conn);
+                get.Parameters.AddWithValue("c", cursoId);
+                get.Parameters.AddWithValue("f", fecha.Date);
+                var existing = await get.ExecuteScalarAsync();
+                return (Guid)existing!;
+            }
+            return (Guid)idObj!;
         }
     }
 }

@@ -169,6 +169,11 @@ namespace Campus_Virtul_GRLL.Controllers
             // Participantes (profesores + practicantes)
             var participantes = await _repo.GetParticipantesCursoAsync(id);
             ViewBag.Participantes = participantes;
+            // Horario y asistencias para pestaña Asistencias
+            var horario = await _repo.GetHorarioCursoAsync(id);
+            var asistencias = await _repo.GetAsistenciasCursoAsync(id);
+            ViewBag.Horario = horario;
+            ViewBag.Asistencias = asistencias;
             return View("DetalleProfesor");
         }
 
@@ -315,7 +320,17 @@ namespace Campus_Virtul_GRLL.Controllers
         public async Task<IActionResult> RetirarProfesor(Guid idCurso, Guid profesorId)
         {
             await _repo.RemoveProfesorDeCursoAsync(idCurso, profesorId);
-            TempData["Mensaje"] = "Profesor retirado";
+            // Si ya no quedan profesores asignados, pasar a borrador automáticamente
+            var quedanProfes = await _repo.HasProfesorAsignadoAsync(idCurso);
+            if (!quedanProfes)
+            {
+                await _repo.UpdateCursoEstadoAsync(idCurso, "borrador");
+                TempData["Mensaje"] = "Profesor retirado. Sin profesores asignados; el curso pasó a Borrador.";
+            }
+            else
+            {
+                TempData["Mensaje"] = "Profesor retirado";
+            }
             return RedirectToAction(GetDetalleActionForCurrentUser(), new { id = idCurso });
         }
 

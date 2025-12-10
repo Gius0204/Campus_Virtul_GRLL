@@ -57,6 +57,57 @@ namespace Campus_Virtul_GRLL.Controllers
             return RedirectToAction("Tomar", new { idCurso, fecha });
         }
 
+        // ---- Configurar horario del curso ----
+        [Authorize(Roles="Profesor")]
+        [HttpGet]
+        public async Task<IActionResult> Configurar(Guid idCurso)
+        {
+            ViewBag.CursoId = idCurso;
+            var horario = await _repo.GetHorarioCursoAsync(idCurso);
+            ViewBag.Horario = horario;
+            return View();
+        }
+
+        [Authorize(Roles="Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarHorario(Guid idCurso, string[] dias, string[] inicio, string[] fin)
+        {
+            try
+            {
+                if (dias == null || inicio == null || fin == null || dias.Length != inicio.Length || dias.Length != fin.Length)
+                    throw new ArgumentException("Entradas de horario inválidas");
+                await _repo.ReplaceHorarioCursoAsync(idCurso, dias, inicio, fin);
+                TempData["Mensaje"] = "Horario actualizado";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error guardando horario");
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction("DetalleProfesor", "Cursos", new { id = idCurso });
+        }
+
+        // Crear asistencia (fecha debe corresponder a un día permitido)
+        [Authorize(Roles="Profesor")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Crear(Guid idCurso, DateTime fecha)
+        {
+            try
+            {
+                var profesorId = User.GetUserIdGuid()!.Value;
+                await _repo.CrearAsistenciaAsync(idCurso, fecha, profesorId);
+                TempData["Mensaje"] = "Asistencia creada";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creando asistencia");
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction("DetalleProfesor", "Cursos", new { id = idCurso });
+        }
+
         // Practicante/Colaborador: ver sus asistencias por curso
         [Authorize(Roles="Practicante,Colaborador")]
         [HttpGet]

@@ -1,0 +1,84 @@
+@model dynamic
+@{
+    ViewData["Title"] = "Configurar horario";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    Guid cursoId = (Guid)ViewBag.CursoId;
+    var horario = (IEnumerable<(string dia, TimeSpan inicio, TimeSpan fin)>) (ViewBag.Horario ?? Enumerable.Empty<(string, TimeSpan, TimeSpan)>());
+    string[] diasSemana = new[]{"lunes","martes","miercoles","jueves","viernes","sabado","domingo"};
+}
+<div class="container-fluid">
+    <h1 class="page-title mb-2">Configurar horario del curso</h1>
+    @if (TempData["Mensaje"] != null){<div class="alert alert-success">@TempData["Mensaje"]</div>}
+    @if (TempData["Error"] != null){<div class="alert alert-danger">@TempData["Error"]</div>}
+
+    <div class="content-card mb-3">
+        <h6 class="mb-2">Horario actual</h6>
+        @if (!horario.Any())
+        {
+            <p class="text-muted">No hay horario configurado.</p>
+        }
+        else
+        {
+            <ul class="list-unstyled">
+                @foreach (var h in horario.OrderBy(h => h.dia))
+                {
+                    <li><span class="badge bg-secondary text-capitalize">@h.dia</span> @h.inicio.ToString("hh\\:mm") - @h.fin.ToString("hh\\:mm")</li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="content-card">
+        <h6 class="mb-2">Definir horario</h6>
+        <form method="post" asp-action="GuardarHorario" asp-controller="Asistencias">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="idCurso" value="@cursoId" />
+            <div id="rows" class="d-flex flex-column gap-2 mb-2"></div>
+            <div class="d-flex gap-2 mb-3">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow()">Añadir día</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearRows()">Limpiar</button>
+            </div>
+            <div class="text-end">
+                <button class="btn btn-primary">Guardar horario</button>
+            </div>
+        </form>
+        <p class="text-muted mt-2">Evita duplicar días u horas superpuestas. El sistema validará al crear asistencias que sean en días permitidos.</p>
+    </div>
+</div>
+
+<script>
+    const dias = ["lunes","martes","miercoles","jueves","viernes","sabado","domingo"];
+    function rowTemplate(dia, hi, hf){
+        return `
+        <div class="row g-2 align-items-end row-item">
+            <div class="col-md-4">
+                <label class="form-label">Día</label>
+                <select name="dias" class="form-select" required>
+                    ${dias.map(d=>`<option ${d===dia? 'selected':''} value="${d}">${d}</option>`).join('')}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hora inicio</label>
+                <input type="time" name="inicio" value="${hi||''}" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hora fin</label>
+                <input type="time" name="fin" value="${hf||''}" class="form-control" required />
+            </div>
+            <div class="col-md-2 text-end">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.row-item').remove()">Quitar</button>
+            </div>
+        </div>`;
+    }
+    function addRow(dia='', hi='', hf=''){
+        const rows = document.getElementById('rows');
+        rows.insertAdjacentHTML('beforeend', rowTemplate(dia||dias[0], hi, hf));
+    }
+    function clearRows(){ document.getElementById('rows').innerHTML = ''; }
+    // preload existing horario
+    (function preload(){
+        const existing = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(horario.Select(h=> new { dia = h.dia, inicio = h.inicio.ToString("hh\\:mm"), fin = h.fin.ToString("hh\\:mm") })));
+        if (existing.length){ existing.forEach(h=> addRow(h.dia, h.inicio, h.fin)); }
+        else { addRow(); }
+    })();
+</script>

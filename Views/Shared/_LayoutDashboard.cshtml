@@ -79,11 +79,18 @@
                         </ul>
                     </li>
                 }
-                @* Mis Cursos (submenu) para Practicante y Colaborador *@
+                @* Catálogo + Mis Cursos (submenu) para Practicante y Colaborador - usando Bootstrap Collapse *@
                 @if (rol == "Practicante" || rol == "Colaborador") {
                     <li>
-                        <a href="#" class="submenu-toggle"><span class="icon">🎓</span><span>Mis Cursos</span></a>
-                        <ul class="submenu">
+                        <a href="@Url.Action("Catalogo","Practicante")">
+                            <span class="icon">📚</span><span>Catálogo Cursos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#submenuMisCursosPc" class="submenu-toggle" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="submenuMisCursosPc">
+                            <span class="icon">🎓</span><span>Mis Cursos</span>
+                        </a>
+                        <ul id="submenuMisCursosPc" class="submenu collapse">
                             <li><a href="@Url.Action("MisCursos", "Practicante")">Contenido</a></li>
                             <li><a href="@Url.Action("MisCursos", "Asistencias")">Asistencias</a></li>
                         </ul>

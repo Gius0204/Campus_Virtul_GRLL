@@ -40,6 +40,14 @@
                 <button class="btn btn-success">Publicar Curso</button>
             </form>
         }
+        else if (puedeEditar && (string)c.estado == "publicado")
+        {
+            <form method="post" asp-action="Borrador" asp-controller="Cursos" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idCurso" value="@c.id" />
+                <button class="btn btn-warning">Marcar como Borrador</button>
+            </form>
+        }
     </div>
 
         <div class="content-card mb-4">

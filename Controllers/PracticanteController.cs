@@ -28,12 +28,20 @@ namespace Campus_Virtul_GRLL.Controllers
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             Guid? uid = null;
             if (!string.IsNullOrWhiteSpace(userIdStr) && Guid.TryParse(userIdStr, out var g)) uid = g;
+            var rolUsuario = User.FindFirst(ClaimsIdentity.DefaultRoleClaimType)?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
 
             var cursos = (await _repo.GetCursosAsync())
                 .Where(c => string.Equals(c.estado, "publicado", StringComparison.OrdinalIgnoreCase))
                 .ToList();
             var pendientes = uid.HasValue ? await _repo.GetSolicitudesInscripcionPorUsuarioAsync(uid.Value) : new List<(Guid cursoId, string estado)>();
-            var inscritos = uid.HasValue ? await _repo.GetCursosPorPracticanteAsync(uid.Value) : new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+            var inscritos = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+            if (uid.HasValue)
+            {
+                if (string.Equals(rolUsuario, "Colaborador", StringComparison.OrdinalIgnoreCase))
+                    inscritos = await _repo.GetCursosPorColaboradorAsync(uid.Value);
+                else
+                    inscritos = await _repo.GetCursosPorPracticanteAsync(uid.Value);
+            }
 
             var vm = cursos.Select(c => new Models.ViewModels.CursoCatalogoVm
             {
@@ -61,8 +69,10 @@ namespace Campus_Virtul_GRLL.Controllers
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var uid))
                 return RedirectToAction("Index", "Login");
-
-            var cursos = await _repo.GetCursosPorPracticanteAsync(uid);
+            var rolUsuario = User.FindFirst(ClaimsIdentity.DefaultRoleClaimType)?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+            var cursos = string.Equals(rolUsuario, "Colaborador", StringComparison.OrdinalIgnoreCase)
+                ? await _repo.GetCursosPorColaboradorAsync(uid)
+                : await _repo.GetCursosPorPracticanteAsync(uid);
             var vm = cursos
                 .Select(c => new Models.ViewModels.CursoVm
                 {
