@@ -435,11 +435,11 @@ namespace Campus_Virtul_GRLL.Services
             return (Guid)idObj!;
         }
 
-        public async Task<(int cursos, int profesores, int practicantes)> GetDashboardCountsAsync()
+        public async Task<(int cursos, int profesores, int practicantes, int colaboradores)> GetDashboardCountsAsync()
         {
             using var conn = CreateConnection();
             await conn.OpenAsync();
-            int cursos = 0, profesores = 0, practicantes = 0;
+            int cursos = 0, profesores = 0, practicantes = 0, colaboradores = 0;
             using (var cmd = new NpgsqlCommand("select count(*) from public.cursos where lower(coalesce(estado,'borrador'))='publicado'", conn))
             {
                 cursos = Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -452,7 +452,11 @@ namespace Campus_Virtul_GRLL.Services
             {
                 practicantes = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             }
-            return (cursos, profesores, practicantes);
+            using (var cmd = new NpgsqlCommand("select count(*) from public.usuarios u join public.roles r on r.id=u.rol_id where lower(r.nombre)='colaborador' and u.activo=true", conn))
+            {
+                colaboradores = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            return (cursos, profesores, practicantes, colaboradores);
         }
 
         public async Task DeleteUsuarioByIdAsync(Guid usuarioId)
@@ -739,6 +743,20 @@ namespace Campus_Virtul_GRLL.Services
                     list.Add((r2.GetGuid(0), r2.GetString(1), r2.IsDBNull(2)?"":r2.GetString(2), r2.GetString(3)));
                 }
             }
+            // Colaboradores
+            using (var cmdColab = new NpgsqlCommand(@"select u.id, u.nombres, u.correo, 'Colaborador' as rol
+                                                      from public.curso_colaboradores cc
+                                                      join public.usuarios u on u.id = cc.colaborador_id
+                                                      join public.roles r on r.id = u.rol_id
+                                                      where cc.curso_id=@cid and lower(r.nombre)='colaborador'", conn))
+            {
+                cmdColab.Parameters.AddWithValue("cid", cursoId);
+                using var r3 = await cmdColab.ExecuteReaderAsync();
+                while (await r3.ReadAsync())
+                {
+                    list.Add((r3.GetGuid(0), r3.GetString(1), r3.IsDBNull(2)?"":r3.GetString(2), r3.GetString(3)));
+                }
+            }
             return list;
         }
 
@@ -839,6 +857,49 @@ namespace Campus_Virtul_GRLL.Services
                 list.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2)? null: reader.GetString(2), reader.GetString(3), reader.GetDateTime(4)));
             }
             return list;
+        }
+
+        public async Task<List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>> GetCursosPorColaboradorAsync(Guid colaboradorId)
+        {
+            var list = new List<(Guid, string, string?, string, DateTime)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select c.id, c.titulo, c.descripcion, coalesce(c.estado,'borrador'), c.creado_en
+                                               from public.curso_colaboradores cc
+                                               join public.cursos c on c.id = cc.curso_id
+                                               where cc.colaborador_id = @cid
+                                               order by c.creado_en desc", conn);
+            cmd.Parameters.AddWithValue("cid", colaboradorId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                list.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2)? null: reader.GetString(2), reader.GetString(3), reader.GetDateTime(4)));
+            }
+            return list;
+        }
+
+        public async Task<bool> HasProfesorAsignadoAsync(Guid cursoId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand("select exists(select 1 from public.curso_profesores where curso_id=@c)", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            var r = await cmd.ExecuteScalarAsync();
+            return r is bool b && b;
+        }
+
+        public async Task<(int profesores, int practicantes, int colaboradores)> GetParticipanteCountsAsync(Guid cursoId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            int profesores = 0, practicantes = 0, colaboradores = 0;
+            using (var c1 = new NpgsqlCommand("select count(*) from public.curso_profesores where curso_id=@c", conn))
+            { c1.Parameters.AddWithValue("c", cursoId); profesores = Convert.ToInt32(await c1.ExecuteScalarAsync()); }
+            using (var c2 = new NpgsqlCommand("select count(*) from public.curso_practicantes where curso_id=@c", conn))
+            { c2.Parameters.AddWithValue("c", cursoId); practicantes = Convert.ToInt32(await c2.ExecuteScalarAsync()); }
+            using (var c3 = new NpgsqlCommand("select count(*) from public.curso_colaboradores where curso_id=@c", conn))
+            { c3.Parameters.AddWithValue("c", cursoId); colaboradores = Convert.ToInt32(await c3.ExecuteScalarAsync()); }
+            return (profesores, practicantes, colaboradores);
         }
 
         public async Task<List<(Guid cursoId, string estado)>> GetSolicitudesInscripcionPorUsuarioAsync(Guid usuarioId)
@@ -1006,6 +1067,99 @@ namespace Campus_Virtul_GRLL.Services
                     new DateTimeOffset(r.GetDateTime(7), TimeSpan.Zero),
                     r.IsDBNull(8)? (DateTimeOffset?)null: new DateTimeOffset(r.GetDateTime(8), TimeSpan.Zero)
                 ));
+            }
+            return list;
+        }
+
+        // ===== Asistencias =====
+        public async Task<Guid> UpsertAsistenciaAsync(Guid cursoId, Guid profesorId, DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"insert into public.asistencias (id, curso_id, profesor_id, fecha, hora_inicio, hora_fin)
+                                              values (gen_random_uuid(), @c, @p, @f, @hi, @hf)
+                                              on conflict (curso_id, fecha)
+                                              do update set profesor_id = EXCLUDED.profesor_id,
+                                                            hora_inicio = EXCLUDED.hora_inicio,
+                                                            hora_fin = EXCLUDED.hora_fin,
+                                                            creada_en = now()
+                                              returning id", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("p", profesorId);
+            cmd.Parameters.AddWithValue("f", fecha.ToDateTime(TimeOnly.MinValue));
+            cmd.Parameters.AddWithValue("hi", (object?)(horaInicio?.ToTimeSpan()) ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("hf", (object?)(horaFin?.ToTimeSpan()) ?? DBNull.Value);
+            var idObj = await cmd.ExecuteScalarAsync();
+            return (Guid)idObj!;
+        }
+
+        public async Task SetAsistenciaDetalleAsync(Guid asistenciaId, Guid usuarioId, string estado, string? justificacion)
+        {
+            estado = (estado ?? "ausente").Trim().ToLowerInvariant();
+            if (!(new[]{"presente","tardanza","ausente","justificado"}).Contains(estado)) estado = "ausente";
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"insert into public.asistencias_detalle (id, asistencia_id, usuario_id, estado, justificacion)
+                                              values (gen_random_uuid(), @a, @u, @e, @j)
+                                              on conflict (asistencia_id, usuario_id)
+                                              do update set estado = EXCLUDED.estado,
+                                                            justificacion = EXCLUDED.justificacion,
+                                                            marcada_en = now()", conn);
+            cmd.Parameters.AddWithValue("a", asistenciaId);
+            cmd.Parameters.AddWithValue("u", usuarioId);
+            cmd.Parameters.AddWithValue("e", estado);
+            cmd.Parameters.AddWithValue("j", (object?)justificacion ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<(int presente, int tardanza, int ausente, int justificado)> GetResumenAsistenciaUsuarioAsync(Guid cursoId, Guid usuarioId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            int presente = 0, tardanza = 0, ausente = 0, justificado = 0;
+            using var cmd = new NpgsqlCommand(@"select lower(coalesce(ad.estado,'ausente')) as est, count(*)
+                                               from public.asistencias a
+                                               join public.asistencias_detalle ad on ad.asistencia_id = a.id
+                                               where a.curso_id=@c and ad.usuario_id=@u
+                                               group by 1", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("u", usuarioId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var est = r.GetString(0); var cnt = r.GetInt32(1);
+                switch(est){
+                    case "presente": presente = cnt; break;
+                    case "tardanza": tardanza = cnt; break;
+                    case "justificado": justificado = cnt; break;
+                    default: ausente = cnt; break;
+                }
+            }
+            return (presente, tardanza, ausente, justificado);
+        }
+
+        public async Task<List<(DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin, string estado, string? justificacion)>>
+            ListarAsistenciasPorUsuarioAsync(Guid cursoId, Guid usuarioId)
+        {
+            var list = new List<(DateOnly, TimeOnly?, TimeOnly?, string, string?)>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select a.fecha, a.hora_inicio, a.hora_fin, lower(coalesce(ad.estado,'ausente')) as estado, ad.justificacion
+                                               from public.asistencias a
+                                               left join public.asistencias_detalle ad on ad.asistencia_id = a.id and ad.usuario_id=@u
+                                               where a.curso_id=@c
+                                               order by a.fecha desc", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            cmd.Parameters.AddWithValue("u", usuarioId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var fecha = DateOnly.FromDateTime(r.GetDateTime(0));
+                TimeOnly? hi = r.IsDBNull(1) ? (TimeOnly?)null : TimeOnly.FromTimeSpan(r.GetTimeSpan(1));
+                TimeOnly? hf = r.IsDBNull(2) ? (TimeOnly?)null : TimeOnly.FromTimeSpan(r.GetTimeSpan(2));
+                var estado = r.IsDBNull(3) ? "ausente" : r.GetString(3);
+                var just = r.IsDBNull(4) ? null : r.GetString(4);
+                list.Add((fecha, hi, hf, estado, just));
             }
             return list;
         }

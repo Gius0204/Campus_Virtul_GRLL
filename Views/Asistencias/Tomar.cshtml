@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Tomar Asistencia";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var participantes = (IEnumerable<(System.Guid id, string nombres, string correo, string rol)>)ViewBag.Participantes ?? Enumerable.Empty<(System.Guid, string, string, string)>();
+    var fecha = (DateOnly)ViewBag.Fecha;
+    var cursoId = (System.Guid)ViewBag.CursoId;
+}
+
+<div class="content-card">
+    <h5>Tomar Asistencia</h5>
+    <form asp-action="Registrar" asp-controller="Asistencias" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idCurso" value="@cursoId" />
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label class="form-label">Fecha</label>
+                <input type="date" class="form-control" name="fecha" value="@fecha.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hora inicio</label>
+                <input type="time" class="form-control" name="horaInicio" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hora fin</label>
+                <input type="time" class="form-control" name="horaFin" />
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Participante</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Justificación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in participantes)
+                    {
+                        <tr>
+                            <td>
+                                <input type="hidden" name="usuarios" value="@p.id" />
+                                @p.nombres (@p.correo)
+                            </td>
+                            <td>@p.rol</td>
+                            <td>
+                                <select class="form-select form-select-sm" name="estados">
+                                    <option value="presente">Presente</option>
+                                    <option value="tardanza">Tardanza</option>
+                                    <option value="ausente">Ausente</option>
+                                    <option value="justificado">Justificado</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm" name="justificaciones" placeholder="opcional" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary">Guardar asistencia</button>
+        </div>
+    </form>
+</div>

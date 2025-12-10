@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Mis Cursos - Asistencias";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var cursos = (IEnumerable<(System.Guid id, string titulo, string? descripcion, string estado, System.DateTime creadoEn)>)ViewBag.Cursos ?? Enumerable.Empty<(System.Guid,string,string?,string,System.DateTime)>();
+}
+
+<div class="content-card">
+    <h5>Mis Cursos – Asistencias</h5>
+    <hr />
+    @if (!cursos.Any()){
+        <div class="alert alert-info">No tiene cursos asignados.</div>
+    } else {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Curso</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in cursos)
+                    {
+                        <tr>
+                            <td>@c.titulo</td>
+                            <td>@c.estado</td>
+                            <td>
+                                <a class="btn btn-sm btn-primary me-1" href="@Url.Action("Resumen","Asistencias", new { idCurso = c.id })">Ver resumen</a>
+                                <a class="btn btn-sm btn-secondary" href="@Url.Action("Historial","Asistencias", new { idCurso = c.id })">Ver historial</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

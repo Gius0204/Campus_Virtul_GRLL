@@ -1,0 +1,147 @@
+@{
+    ViewData["Title"] = "Listado de Cursos";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="content-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5>Listado de registros</h5>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearCursoModal">
+                        ➕ Nuevo Curso
+                    </button>
+                </div>
+                <hr>
+                <div class="table-responsive" id="lista-cursos">
+                    @{
+                        var cursos = (ViewBag.Cursos as IEnumerable<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>) 
+                                     ?? Enumerable.Empty<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
+                    }
+                    @if (!cursos.Any())
+                    {
+                        <div class="alert alert-info m-2">No hay cursos registrados aún.</div>
+                    }
+                    else
+                    {
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Descripción</th>
+                                    <th>Estado</th>
+                                    <th>Profesores asignados</th>
+                                    <th>Creado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in cursos)
+                                {
+                                    <tr>
+                                        <td>@c.titulo</td>
+                                        <td>@(string.IsNullOrWhiteSpace(c.descripcion) ? "-" : c.descripcion)</td>
+                                        <td>@c.estado</td>
+                                        <td>
+                                            @{ 
+                                                var asignadosFunc = ViewBag.ProfesoresAsignadosPorCurso as Func<Guid, IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>;
+                                                var asignados = asignadosFunc != null ? asignadosFunc(c.id) : Enumerable.Empty<(Guid, string, string?, string?, string, string?)>();
+                                            }
+                                            @(asignados.Count())
+                                        </td>
+                                        <td>@c.creadoEn.ToString("yyyy-MM-dd")</td>
+                                        <td>
+                                            <a class="btn btn-sm btn-info" href="@Url.Action("DetalleAdministrador","Cursos", new { id = c.id })">Ver</a>
+                                            <form method="post" asp-action="@(c.estado == "publicado" ? "BorradorCurso" : "PublicarCurso")" asp-controller="Administrador" style="display:inline-block;" class="form-publicar-curso">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@c.id" />
+                                                <button type="submit" class="btn btn-sm @(c.estado == "publicado" ? "btn-secondary" : "btn-success")" data-prof-count="@(asignados.Count())">
+                                                    @(c.estado == "publicado" ? "Borrador" : "Publicar")
+                                                </button>
+                                            </form>
+                                            <form method="post" asp-action="EliminarCurso" asp-controller="Administrador" style="display:inline-block;" onsubmit="return confirm('¿Eliminar curso?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@c.id" />
+                                                <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Crear Curso (reutilizado aquí para conveniencia) -->
+<div class="modal fade" id="crearCursoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Curso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form asp-action="CrearCurso" asp-controller="Administrador" method="post" id="crearCursoForm">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label class="form-label">Título</label>
+                        <input type="text" name="titulo" class="form-control" required maxlength="120" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea name="descripcion" class="form-control" rows="3" maxlength="500"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Estado inicial</label>
+                        <select name="estado" class="form-select" required>
+                            <option value="borrador" selected>Borrador</option>
+                            <option value="publicado">Publicado</option>
+                        </select>
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">Crear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showAppToast(message, type){
+            var toastEl = document.getElementById('appToast');
+            var bodyEl = document.getElementById('appToastBody');
+            if (!toastEl || !bodyEl) { alert(message); return; }
+            bodyEl.textContent = message;
+            // limpiar estilos
+            toastEl.classList.remove('text-bg-success','text-bg-danger','text-bg-warning','text-bg-info');
+            var cls = 'text-bg-warning';
+            if (type === 'success') cls = 'text-bg-success';
+            if (type === 'danger') cls = 'text-bg-danger';
+            if (type === 'info') cls = 'text-bg-info';
+            toastEl.classList.add(cls);
+            var toast = new bootstrap.Toast(toastEl, { delay: 3500 });
+            toast.show();
+        }
+
+        // Advertencia al publicar si no hay profesores asignados
+        document.querySelectorAll('.form-publicar-curso').forEach(function(frm){
+            frm.addEventListener('submit', function(e){
+                var btn = frm.querySelector('button[type="submit"]');
+                if (!btn) return;
+                var count = parseInt(btn.getAttribute('data-prof-count') || '0', 10);
+                var isPublish = btn.textContent.trim().toLowerCase() === 'publicar';
+                if (isPublish && count === 0){
+                    e.preventDefault();
+                    showAppToast('Antes de publicar el curso, debe asignar al menos 1 profesor al curso', 'warning');
+                }
+            });
+        });
+    </script>
+}

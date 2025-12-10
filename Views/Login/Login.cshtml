@@ -24,7 +24,17 @@
 
 <body>
     <div class="container">
-        <div class="title">Bienvenido Campus Virtual GRLL</div>
+            <div class="title">Bienvenido Campus Virtual GRLL</div>
+            @{
+                var rolEsperado = ViewBag.RolEsperado as string;
+            }
+            @if (!string.IsNullOrWhiteSpace(rolEsperado))
+            {
+                <div class="alert alert-info" role="alert" style="margin-top:10px;">
+                    Iniciar sesión como <strong>@rolEsperado</strong>.
+                    <a href="@Url.Action("Index","Home")" class="ms-2">¿No eres @rolEsperado? Volver al inicio</a>
+                </div>
+            }
         <form id="formulario" asp-action="Login" asp-controller="Login" method="post">
             @Html.AntiForgeryToken()
 
@@ -43,6 +53,10 @@
                     </div>
                 </div>
             </div>
+                @if (!string.IsNullOrWhiteSpace(rolEsperado))
+                {
+                    <input type="hidden" name="RolEsperado" value="@rolEsperado" />
+                }
 
             <div class="d-flex justify-content-between align-items-center" style="margin-top:10px;">
                 <a href="#" class="forgot-password-link" id="forgotPasswordLink">¿Olvidó su contraseña?</a>
@@ -94,7 +108,7 @@
 
         <script>
             setTimeout(function() {
-                window.location.href = '@Url.Action("Index", "Login")';
+                window.location.href = '@Url.Action("Index", "Home")';
             }, 3000);
         </script>
     }

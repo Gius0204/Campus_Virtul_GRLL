@@ -211,7 +211,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 _cache.Remove(cacheKey);
 
                 TempData["Mensaje"] = "Correo verificado. Tu solicitud fue enviada al administrador.";
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
             {

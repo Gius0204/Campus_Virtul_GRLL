@@ -22,8 +22,21 @@ namespace Campus_Virtul_GRLL.Controllers
 
         /// Muestra el formulario de login
         [HttpGet]
-        public IActionResult Index()
+        public IActionResult Index(string? rol)
         {
+            // Soporte para login específico por rol desde el selector de inicio
+            if (!string.IsNullOrWhiteSpace(rol))
+            {
+                var r = rol.Trim();
+                // Normalizar a nombres de rol conocidos
+                if (string.Equals(r, "Administrador", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(r, "Profesor", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(r, "Practicante", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(r, "Colaborador", StringComparison.OrdinalIgnoreCase))
+                {
+                    ViewBag.RolEsperado = char.ToUpper(r[0]) + r.Substring(1).ToLower();
+                }
+            }
             return View("Login");
         }
 
@@ -122,7 +135,7 @@ namespace Campus_Virtul_GRLL.Controllers
         /// Procesa el login del usuario
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Login(string DNI, string Contrasena)
+        public async Task<IActionResult> Login(string DNI, string Contrasena, string? RolEsperado)
         {
             try
             {
@@ -166,6 +179,19 @@ namespace Campus_Virtul_GRLL.Controllers
                     _logger.LogWarning($"Usuario inactivo - correo: {DNI}, ID: {usuarioDb.Value.id}");
                     TempData["Error"] = "Su cuenta está inactiva. Contacte al administrador.";
                     return View("Login");
+                }
+
+                // Si se espera un rol específico desde el selector, validar coincidencia
+                if (!string.IsNullOrWhiteSpace(RolEsperado))
+                {
+                    var esperado = RolEsperado.Trim();
+                    if (!string.Equals(usuarioDb.Value.rolNombre, esperado, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning($"Rol incorrecto en acceso específico. Esperado: {esperado}, Actual: {usuarioDb.Value.rolNombre}");
+                        TempData["Error"] = $"Este acceso es solo para {esperado}.";
+                        ViewBag.RolEsperado = esperado;
+                        return View("Login");
+                    }
                 }
 
                 // ============================================
@@ -473,7 +499,7 @@ namespace Campus_Virtul_GRLL.Controllers
 
                 _logger.LogInformation($"✅ Usuario {userName} cerró sesión exitosamente");
 
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
             {

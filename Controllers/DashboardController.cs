@@ -28,7 +28,8 @@ namespace Campus_Virtul_GRLL.Controllers
             return userRole switch
             {
                 "Administrador" => RedirectToAction("PanelAdministrador", "Administrador"),
-                "Colaborador" => RedirectToAction("PanelColaborador"),
+                // Colaborador usa el mismo panel y menú que Practicante
+                "Colaborador" => RedirectToAction("PanelPracticante"),
                 "Profesor" => RedirectToAction("PanelProfesor"),
                 "Practicante" => RedirectToAction("PanelPracticante"),
                 _ => View("DashboardGeneral")
@@ -88,7 +89,11 @@ namespace Campus_Virtul_GRLL.Controllers
             var cursosAsignados = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
             int totalCursos = 0;
             int totalPracticantes = 0;
+            int totalColaboradores = 0;
+            int totalProfesores = 0;
             var practicantesUnicos = new HashSet<Guid>();
+            var colaboradoresUnicos = new HashSet<Guid>();
+            var profesoresUnicos = new HashSet<Guid>();
             if (Guid.TryParse(profesorIdStr, out var profesorId))
             {
                 cursosAsignados = repo.GetCursosPorProfesorAsync(profesorId).GetAwaiter().GetResult();
@@ -103,6 +108,14 @@ namespace Campus_Virtul_GRLL.Controllers
                         {
                             if (string.Equals(p.rol, "Practicante", StringComparison.OrdinalIgnoreCase))
                                 practicantesUnicos.Add(p.id);
+                            else if (string.Equals(p.rol, "Colaborador", StringComparison.OrdinalIgnoreCase))
+                                colaboradoresUnicos.Add(p.id);
+                        }
+                        // Profesores asignados al curso
+                        var profs = repo.GetCursoProfesoresAsync(curso.id).GetAwaiter().GetResult();
+                        foreach (var pr in profs)
+                        {
+                            profesoresUnicos.Add(pr.profesorId);
                         }
                     }
                     catch
@@ -111,25 +124,32 @@ namespace Campus_Virtul_GRLL.Controllers
                     }
                 }
                 totalPracticantes = practicantesUnicos.Count;
+                totalColaboradores = colaboradoresUnicos.Count;
+                // Incluirse a sí mismo por si no se incluyó en la consulta
+                profesoresUnicos.Add(profesorId);
+                totalProfesores = profesoresUnicos.Count;
             }
 
             ViewBag.TotalCursos = totalCursos;
+            ViewBag.TotalProfesores = totalProfesores;
             ViewBag.TotalPracticantes = totalPracticantes;
+            ViewBag.TotalColaboradores = totalColaboradores;
             ViewBag.Cursos = cursosAsignados;
 
             return View();
         }
 
-        /// Panel exclusivo para Practicantes
-        [Authorize(Roles = "Practicante")]
+        /// Panel para Practicantes y Colaboradores (mismo menú/funcionalidad)
+        [Authorize(Roles = "Practicante,Colaborador")]
         public IActionResult PanelPracticante()
         {
             ViewBag.NombrePracticante = User.GetUserName();
             ViewBag.Area = User.GetUserArea();
             ViewBag.Email = User.GetUserEmail();
-            ViewBag.Rol = "Practicante";
+            // Mostrar el rol real (Practicante o Colaborador)
+            ViewBag.Rol = User.GetUserRole();
 
-            _logger.LogInformation($"Practicante {User.GetUserName()} accedió a su panel");
+            _logger.LogInformation($"{ViewBag.Rol} {User.GetUserName()} accedió a su panel");
 
             return View();
         }
@@ -164,6 +184,37 @@ namespace Campus_Virtul_GRLL.Controllers
             ViewBag.EsAdministrador = User.IsInRole("Administrador");
 
             return View();
+        }
+
+        [Authorize(Roles = "Profesor")]
+        [HttpGet]
+        public async Task<IActionResult> ParticipanteCountsProfesor([FromQuery] Guid[] ids)
+        {
+            if (ids == null || ids.Length == 0)
+                return Json(new { ok = false, error = "Sin cursos seleccionados" });
+            try
+            {
+                var repo = new Services.SupabaseRepository();
+                var profesorIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!Guid.TryParse(profesorIdStr, out var profesorId))
+                    return Json(new { ok = false, error = "Profesor inválido" });
+
+                var asignados = await repo.GetCursosPorProfesorAsync(profesorId);
+                var asignadosIds = asignados.Select(c => c.id).ToHashSet();
+                var permitidos = ids.Where(id => asignadosIds.Contains(id)).Take(5).ToArray();
+                var data = new List<object>();
+                foreach (var id in permitidos)
+                {
+                    var counts = await repo.GetParticipanteCountsAsync(id);
+                    var titulo = asignados.FirstOrDefault(c => c.id == id).titulo;
+                    data.Add(new { cursoId = id, titulo, profesores = counts.profesores, practicantes = counts.practicantes, colaboradores = counts.colaboradores });
+                }
+                return Json(new { ok = true, data });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, error = ex.Message });
+            }
         }
     }
 }

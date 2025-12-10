@@ -42,7 +42,8 @@
                             foreach (var r in roles)
                             {
                                 if (string.Equals(r.nombre, "Profesor", StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(r.nombre, "Practicante", StringComparison.OrdinalIgnoreCase))
+                                    string.Equals(r.nombre, "Practicante", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(r.nombre, "Colaborador", StringComparison.OrdinalIgnoreCase))
                                 {
                                     <option value="@r.id">@r.nombre</option>
                                 }
@@ -93,7 +94,7 @@
                 @* Se eliminan los campos de contraseña según requerimiento *@
             </div>
             <div class="d-flex justify-content-between align-items-center mt-3">
-                <a class="btn btn-secondary" href="@Url.Action("Index","Login")">← Volver al Login</a>
+                <a class="btn btn-secondary" href="@Url.Action("Index","Home")">← Volver al inicio</a>
                 <div class="button">
                     <input type="submit" value="Enviar" class="btn btn-primary" />
                 </div>
@@ -109,9 +110,9 @@
             </div>
 
             <script>
-                // Redirigir al Login después de 3 segundos
+                // Redirigir al Inicio (Home) después de 3 segundos
                 setTimeout(function() {
-                    window.location.href = '@Url.Action("Index", "Login")';
+                    window.location.href = '@Url.Action("Index", "Home")';
                 }, 3000);
             </script>
         }

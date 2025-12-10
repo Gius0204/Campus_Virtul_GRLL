@@ -24,179 +24,213 @@
                 <h5>Gestión de Cursos</h5>
                 <hr>
                 <div class="row">
-                    <div class="col-md-4">
-                        <a href="@Url.Action("PanelAdministrador","Administrador", new { vista = "cursos" })" class="text-decoration-none">
-                            <div class="stat-card text-center p-3 mb-3" style="background: #3498db; color: white; border-radius: 8px; cursor:pointer;">
-                                <h3>@(ViewBag.TotalCursos ?? 0)</h3>
-                                <p>Total Cursos</p>
-                            </div>
-                        </a>
+                    <div class="col-md-3">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #3498db; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalCursos ?? 0)</h3>
+                            <p>Total Cursos</p>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <a href="@Url.Action("PanelAdministrador","Administrador", new { vista = "profesores" })" class="text-decoration-none">
-                            <div class="stat-card text-center p-3 mb-3" style="background: #2ecc71; color: white; border-radius: 8px; cursor:pointer;">
-                                <h3>@(ViewBag.TotalProfesores ?? 0)</h3>
-                                <p>Profesores</p>
-                            </div>
-                        </a>
+                    <div class="col-md-3">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #2ecc71; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalProfesores ?? 0)</h3>
+                            <p>Profesores</p>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <a href="@Url.Action("PanelAdministrador","Administrador", new { vista = "practicantes" })" class="text-decoration-none">
-                            <div class="stat-card text-center p-3 mb-3" style="background: #e74c3c; color: white; border-radius: 8px; cursor:pointer;">
-                                <h3>@(ViewBag.TotalPracticantes ?? 0)</h3>
-                                <p>Practicantes</p>
-                            </div>
-                        </a>
+                    <div class="col-md-3">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #e74c3c; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalPracticantes ?? 0)</h3>
+                            <p>Practicantes</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card text-center p-3 mb-3" style="background: #f39c12; color: white; border-radius: 8px;">
+                            <h3>@(ViewBag.TotalColaboradores ?? 0)</h3>
+                            <p>Colaboradores</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Tarjetas de cursos y creación -->
-    <div class="row">
+    <!-- Selección de cursos publicados y gráfico de participantes -->
+    <div class="row mb-4">
         <div class="col-12">
             <div class="content-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5>Listado de registros </h5>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearCursoModal">
-                        ➕ Nuevo Curso
-                    </button>
+                <h5>Gráfico de participantes por curso</h5>
+                <hr />
+                @{ var cursosPubSection = (ViewBag.Cursos as IEnumerable<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>) ?? Enumerable.Empty<(Guid, string, string?, string, DateTime)>(); }
+                <div class="mb-3">
+                    <label class="form-label">Seleccione cursos publicados</label>
+                    <div class="dropdown w-100">
+                        <button class="form-control text-start dropdown-toggle" type="button" id="comboCursosBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="comboSelectedText">Seleccione cursos…</span>
+                        </button>
+                        <div class="dropdown-menu p-2 w-100" aria-labelledby="comboCursosBtn" style="max-height: 340px; overflow-y: auto;">
+                            <div class="mb-2 d-flex">
+                                <input type="text" class="form-control form-control-sm" id="comboSearch" placeholder="Buscar curso..." />
+                            </div>
+                            <div class="d-flex mb-2">
+                                <button class="btn btn-sm btn-outline-primary me-2" id="btnSelectAll">Seleccionar todo</button>
+                                <button class="btn btn-sm btn-outline-secondary" id="btnClearAll">Deseleccionar todo</button>
+                            </div>
+                            <div id="cursosFilter" class="list-group">
+                                @foreach (var c in cursosPubSection.Where(x => string.Equals(x.estado, "publicado", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    <label class="list-group-item d-flex align-items-center">
+                                        <input class="form-check-input me-2 curso-check" type="checkbox" value="@c.id">
+                                        <span class="curso-title">@c.titulo</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted">Use el buscador para filtrar y seleccione los cursos a visualizar.</small>
                 </div>
-                <hr>
-                <div class="table-responsive" id="lista-cursos">
-                    @{
-                        var vista = (string)(ViewBag.Vista ?? "cursos");
-                    }
-                    @if (vista == "cursos")
-                    {
-                        var cursos = (ViewBag.Cursos as IEnumerable<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>) ?? Enumerable.Empty<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
-                        @if (!cursos.Any())
-                        {
-                            <div class="alert alert-info m-2">No hay cursos registrados aún.</div>
-                        }
-                        else
-                        {
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Título</th>
-                                        <th>Descripción</th>
-                                        <th>Estado</th>
-                                        <th>Profesores asignados</th>
-                                        <th>Creado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var c in cursos)
-                                    {
-                                        <tr>
-                                            <td>@c.titulo</td>
-                                            <td>@(string.IsNullOrWhiteSpace(c.descripcion) ? "-" : c.descripcion)</td>
-                                            <td>@c.estado</td>
-                                            <td>
-                                                @{ var asignados = (IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>)ViewBag.ProfesoresAsignadosPorCurso?.Invoke(c.id) ?? Enumerable.Empty<(Guid, string, string?, string?, string, string?)>(); }
-                                                @(asignados.Count())
-                                            </td>
-                                            <td>@c.creadoEn.ToString("yyyy-MM-dd")</td>
-                                            <td>
-                                                <a class="btn btn-sm btn-info" href="@Url.Action("DetalleAdministrador","Cursos", new { id = c.id })">Ver</a>
-                                                <form method="post" asp-action="@(c.estado == "publicado" ? "BorradorCurso" : "PublicarCurso")" asp-controller="Administrador" style="display:inline-block;">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="id" value="@c.id" />
-                                                    <button type="submit" class="btn btn-sm @(c.estado == "publicado" ? "btn-secondary" : "btn-success")">
-                                                        @(c.estado == "publicado" ? "Borrador" : "Publicar")
-                                                    </button>
-                                                </form>
-                                                <form method="post" asp-action="EliminarCurso" asp-controller="Administrador" style="display:inline-block;" onsubmit="return confirm('¿Eliminar curso?');">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="id" value="@c.id" />
-                                                    <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        }
-                    }
-                    else
-                    {
-                        var usuarios = (ViewBag.Usuarios as IEnumerable<(Guid id, string nombres, string correo, bool activo, Guid rolId, string rolNombre)>) ?? Enumerable.Empty<(Guid id, string nombres, string correo, bool activo, Guid rolId, string rolNombre)>();
-                        @if (!usuarios.Any())
-                        {
-                            <div class="alert alert-info m-2">No hay usuarios en esta categoría.</div>
-                        }
-                        else
-                        {
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Nombres</th>
-                                        <th>Correo</th>
-                                        <th>Rol</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var u in usuarios)
-                                    {
-                                        <tr>
-                                            <td>@u.nombres</td>
-                                            <td>@u.correo</td>
-                                            <td>@u.rolNombre</td>
-                                            <td>@(u.activo ? "Activo" : "Inactivo")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        }
-                    }
-                </div>
+                <button id="btnVerGraficosAdmin" class="btn btn-primary">Ver gráficos</button>
+                <div id="chartsGrid" class="charts-grid" style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:16px; margin-top:20px;"></div>
             </div>
         </div>
     </div>
+
+    <!-- Se elimina la sección de Listado de Registros del dashboard -->
 </div>
 
-<!-- Modal Crear Curso -->
-<div class="modal fade" id="crearCursoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nuevo Curso</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form asp-action="CrearCurso" asp-controller="Administrador" method="post" id="crearCursoForm">
-                    @Html.AntiForgeryToken()
-                    <div class="mb-3">
-                        <label class="form-label">Título</label>
-                        <input type="text" name="titulo" class="form-control" required maxlength="120" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descripción</label>
-                        <textarea name="descripcion" class="form-control" rows="3" maxlength="500"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Estado inicial</label>
-                        <select name="estado" class="form-select" required>
-                            <option value="borrador" selected>Borrador</option>
-                            <option value="publicado">Publicado</option>
-                        </select>
-                    </div>
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-primary">Crear</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    </div>
+@* Se elimina el modal de creación de curso del dashboard *@
 
 @section Scripts {
     <script>
         console.log('Panel de Administrador cargado correctamente');
+        // Cargar Chart.js si no está
+        (function ensureChartJs(){
+            if (!window.Chart){
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                document.head.appendChild(s);
+            }
+        })();
+
+        // Toast estilo app
+        function showAppToast(message, type){
+            var toastEl = document.getElementById('appToast');
+            var bodyEl = document.getElementById('appToastBody');
+            if (!toastEl || !bodyEl) { alert(message); return; }
+            bodyEl.textContent = message;
+            toastEl.classList.remove('text-bg-success','text-bg-danger','text-bg-warning','text-bg-info');
+            var cls = 'text-bg-warning';
+            if (type === 'success') cls = 'text-bg-success';
+            if (type === 'danger') cls = 'text-bg-danger';
+            if (type === 'info') cls = 'text-bg-info';
+            toastEl.classList.add(cls);
+            var toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+            toast.show();
+        }
+
+        // Helpers
+        function getSelectedIds(){
+            return Array.from(document.querySelectorAll('.curso-check:checked')).map(i => i.value);
+        }
+
+        function updateComboSelectedText(){
+            var selected = Array.from(document.querySelectorAll('.curso-check:checked')).map(i => i.closest('label').querySelector('.curso-title').textContent.trim());
+            var textEl = document.getElementById('comboSelectedText');
+            if (!textEl) return;
+            if (selected.length === 0) { textEl.textContent = 'Seleccione cursos…'; return; }
+            if (selected.length <= 3) { textEl.textContent = selected.join(', '); return; }
+            textEl.textContent = selected.length + ' seleccionados';
+        }
+
+        async function renderCharts(ids){
+            var grid = document.getElementById('chartsGrid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            if (window._chartsAdmin && Array.isArray(window._chartsAdmin)){
+                window._chartsAdmin.forEach(c => { try { c.destroy(); } catch {} });
+            }
+            window._chartsAdmin = [];
+            if (!ids || ids.length === 0){ showAppToast('Seleccione al menos un curso publicado', 'warning'); return; }
+            try{
+                const params = ids.map(id => 'ids=' + encodeURIComponent(id)).join('&');
+                const resp = await fetch('@Url.Action("ParticipanteCounts","Administrador")' + '?' + params);
+                const json = await resp.json();
+                if (!json.ok){ showAppToast(json.error || 'Ocurrió un error al cargar los datos', 'danger'); return; }
+                // Crear un gráfico por curso seleccionado
+                json.data.forEach(function(d){
+                    var card = document.createElement('div');
+                    card.className = 'card';
+                    var header = document.createElement('div');
+                    header.className = 'card-header';
+                    header.textContent = d.titulo;
+                    var body = document.createElement('div');
+                    body.className = 'card-body';
+                    var canvas = document.createElement('canvas');
+                    body.appendChild(canvas);
+                    card.appendChild(header);
+                    card.appendChild(body);
+                    grid.appendChild(card);
+
+                    var chart = new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Profesores', 'Practicantes', 'Colaboradores'],
+                            datasets: [{
+                                label: 'Participantes',
+                                data: [d.profesores, d.practicantes, d.colaboradores],
+                                backgroundColor: ['#2ecc71', '#e74c3c', '#f39c12'] // Verde, Rojo, Naranja
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: { y: { beginAtZero: true, precision: 0 } },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                    window._chartsAdmin.push(chart);
+                });
+            }catch(e){ alert('Error: ' + e); }
+        }
+
+        // Botón para renderizar gráficos según selección
+        document.getElementById('btnVerGraficosAdmin')?.addEventListener('click', function(){
+            var ids = getSelectedIds();
+            renderCharts(ids);
+        });
+
+        // Seleccionar/Deseleccionar todo
+        document.getElementById('btnSelectAll')?.addEventListener('click', function(e){
+            e.preventDefault();
+            document.querySelectorAll('.curso-check').forEach(i => i.checked = true);
+            updateComboSelectedText();
+        });
+        document.getElementById('btnClearAll')?.addEventListener('click', function(e){
+            e.preventDefault();
+            document.querySelectorAll('.curso-check').forEach(i => i.checked = false);
+            updateComboSelectedText();
+        });
+
+        // Al cargar, seleccionar hasta 5 cursos publicados y renderizar
+        document.addEventListener('DOMContentLoaded', function(){
+            var checks = Array.from(document.querySelectorAll('.curso-check'));
+            checks.slice(0, 5).forEach(i => i.checked = true);
+            var ids = getSelectedIds();
+            updateComboSelectedText();
+            if (ids.length > 0) renderCharts(ids);
+            // Filtrado por buscador
+            var search = document.getElementById('comboSearch');
+            if (search){
+                search.addEventListener('input', function(){
+                    var q = this.value.toLowerCase();
+                    document.querySelectorAll('#cursosFilter .list-group-item').forEach(function(lbl){
+                        var t = (lbl.querySelector('.curso-title')?.textContent || '').toLowerCase();
+                        lbl.style.display = t.indexOf(q) >= 0 ? '' : 'none';
+                    });
+                });
+            }
+            // Actualizar texto al seleccionar/deseleccionar
+            document.querySelectorAll('.curso-check').forEach(function(ch){
+                ch.addEventListener('change', updateComboSelectedText);
+            });
+        });
     </script>
 }
 

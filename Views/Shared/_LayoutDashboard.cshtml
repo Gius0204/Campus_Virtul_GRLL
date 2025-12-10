@@ -55,22 +55,38 @@
                         <span>Dashboard</span>
                     </a>
                 </li>
-                @* Catálogo visible para Administrador y Practicante (no para Profesor) *@
-                @if (rol == "Practicante" || rol == "Administrador") {
-                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == (rol == "Practicante" ? "Practicante" : "Cursos") && ViewContext.RouteData.Values["action"]?.ToString() == (rol == "Practicante" ? "Catalogo" : "Index") ? "active" : "")">
-                        <a href="@(rol == "Practicante" ? Url.Action("Catalogo", "Practicante") : Url.Action("Index", "Cursos"))">
-                            <span class="icon">📚</span>
-                            <span>Catálogo Cursos</span>
+                @* Catálogo Cursos (submenu) para Administrador - usando Bootstrap Collapse *@
+                @if (rol == "Administrador") {
+                    <li>
+                        <a href="#submenuCatalogo" class="submenu-toggle" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="submenuCatalogo">
+                            <span class="icon">📚</span><span>Catálogo Cursos</span>
                         </a>
+                        <ul id="submenuCatalogo" class="submenu collapse">
+                            <li><a href="@Url.Action("Index","Cursos")">Detalle de Cursos</a></li>
+                            <li><a href="@Url.Action("ListadoCursos","Administrador")">Listado de Cursos</a></li>
+                        </ul>
                     </li>
                 }
-                @* Mis Cursos visible excepto Administrador *@
-                @if (rol != "Administrador") {
-                    <li class="@(ViewContext.RouteData.Values["controller"]?.ToString() == (rol == "Practicante" ? "Practicante" : "Cursos") && ViewContext.RouteData.Values["action"]?.ToString() == "MisCursos" ? "active" : "")">
-                        <a href="@(rol == "Practicante" ? Url.Action("MisCursos", "Practicante") : Url.Action("MisCursos", "Cursos"))">
-                            <span class="icon">🎓</span>
-                            <span>Mis Cursos</span>
+                @* Mis Cursos (submenu) para Profesor - Collapse *@
+                @if (rol == "Profesor") {
+                    <li>
+                        <a href="#submenuMisCursosProf" class="submenu-toggle" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="submenuMisCursosProf">
+                            <span class="icon">🎓</span><span>Mis Cursos</span>
                         </a>
+                        <ul id="submenuMisCursosProf" class="submenu collapse">
+                            <li><a href="@Url.Action("ListadoProfesor","Cursos")">Listado de Cursos</a></li>
+                            <li><a href="@Url.Action("MisCursos","Cursos")">Detalle de Cursos</a></li>
+                        </ul>
+                    </li>
+                }
+                @* Mis Cursos (submenu) para Practicante y Colaborador *@
+                @if (rol == "Practicante" || rol == "Colaborador") {
+                    <li>
+                        <a href="#" class="submenu-toggle"><span class="icon">🎓</span><span>Mis Cursos</span></a>
+                        <ul class="submenu">
+                            <li><a href="@Url.Action("MisCursos", "Practicante")">Contenido</a></li>
+                            <li><a href="@Url.Action("MisCursos", "Asistencias")">Asistencias</a></li>
+                        </ul>
                     </li>
                 }
                 @* Panel de Solicitudes solo Administrador *@
@@ -129,6 +145,17 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/DashboardToggle.js"></script>
+    <script>
+        // simple submenu toggle for non-collapse menus only
+        document.querySelectorAll('.submenu-toggle').forEach(function(btn){
+            if (btn.dataset.bsToggle === 'collapse') return; // Bootstrap handles collapse ones
+            btn.addEventListener('click', function(e){
+                e.preventDefault();
+                var ul = this.nextElementSibling;
+                if (ul) ul.classList.toggle('open');
+            });
+        });
+    </script>
         <!-- Modal Logout -->
         <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">

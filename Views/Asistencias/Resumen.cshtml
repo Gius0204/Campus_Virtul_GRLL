@@ -1,0 +1,27 @@
+@{
+    ViewData["Title"] = "Resumen de Asistencias";
+    Layout = "~/Views/Shared/_LayoutDashboard.cshtml";
+    var r = ((int presente, int tardanza, int ausente, int justificado))ViewBag.Resumen;
+}
+
+<div class="content-card">
+    <h5>Resumen de Asistencias</h5>
+    <p class="text-muted">Totales del curso seleccionado</p>
+
+    <div style="max-width:600px">
+        <canvas id="chart"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const data = {
+    labels: ['Presente','Tardanza','Ausente','Justificado'],
+    datasets: [{
+        label: 'Asistencias',
+        backgroundColor: ['#2ecc71','#f1c40f','#e74c3c','#3498db'],
+        data: [@r.presente, @r.tardanza, @r.ausente, @r.justificado]
+    }]
+};
+new Chart(document.getElementById('chart'), { type: 'bar', data });
+</script>

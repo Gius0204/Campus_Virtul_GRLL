@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace Campus_Virtul_GRLL.Controllers
 {
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles="Practicante,Colaborador")]
     public class PracticanteController : Controller
     {
         private readonly SupabaseRepository _repo;

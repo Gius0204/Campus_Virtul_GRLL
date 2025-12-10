@@ -44,7 +44,7 @@ namespace Campus_Virtul_GRLL.Controllers
         }
 
         // Mis cursos (Profesor o Practicante)
-        [Authorize(Roles = "Administrador,Profesor,Practicante")]
+        [Authorize(Roles = "Administrador,Profesor,Practicante,Colaborador")]
         [HttpGet]
         public async Task<IActionResult> MisCursos()
         {
@@ -62,8 +62,42 @@ namespace Campus_Virtul_GRLL.Controllers
                 ViewBag.Cursos = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
                 return View("MisCursos");
             }
+            if (rol == "Colaborador" && userGuid.HasValue)
+            {
+                var cursosColab = await _repo.GetCursosPorColaboradorAsync(userGuid.Value);
+                ViewBag.Cursos = cursosColab;
+                return View("MisCursos");
+            }
             ViewBag.Cursos = new List<(Guid id, string titulo, string? descripcion, string estado, DateTime creadoEn)>();
             return View("MisCursos");
+        }
+
+        // Listado de cursos solo para Profesor (vista de solo lectura con acciones Publicar/Borrador)
+        [Authorize(Roles = "Profesor")]
+        [HttpGet]
+        public async Task<IActionResult> ListadoProfesor()
+        {
+            var userGuid = User.GetUserIdGuid();
+            if (!userGuid.HasValue)
+            {
+                _logger.LogWarning("Usuario sin GUID intentó acceder a ListadoProfesor");
+                return Forbid();
+            }
+            var cursos = await _repo.GetCursosPorProfesorAsync(userGuid.Value);
+            ViewBag.Cursos = cursos;
+
+            // Precargar profesores asignados por curso para contar en la vista (igual que Admin)
+            var dict = new Dictionary<Guid, List<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>();
+            foreach (var c in cursos)
+            {
+                var asignadosExt = await _repo.GetCursoProfesoresAsync(c.id);
+                dict[c.id] = asignadosExt.Select(p => (p.profesorId, p.nombres, p.apellidos, p.telefono, p.correo, p.areaNombre)).ToList();
+            }
+            ViewBag.ProfesoresAsignadosPorCurso = new Func<Guid, IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>(
+                cid => dict.ContainsKey(cid) ? dict[cid] : Enumerable.Empty<(Guid, string, string?, string?, string, string?)>()
+            );
+
+            return View("ListadoCursosProfesor");
         }
 
         // Detalle curso (Administrador)
@@ -77,7 +111,8 @@ namespace Campus_Virtul_GRLL.Controllers
             ViewBag.Curso = curso;
             // Puede editar: Admin o Profesor asignado
             var asignados = await _repo.GetCursoProfesoresAsync(id);
-            bool esProfesorAsignado = User.GetUserRole() == "Profesor" && User.GetUserIdGuid().HasValue && asignados.Any(a => a.profesorId == User.GetUserIdGuid().Value);
+            var uid = User.GetUserIdGuid();
+            bool esProfesorAsignado = User.GetUserRole() == "Profesor" && uid.HasValue && asignados.Any(a => a.profesorId == uid.Value);
             ViewBag.PuedeEditar = User.GetUserRole() == "Administrador" || esProfesorAsignado;
             ViewBag.ProfesoresAsignados = asignados;
             // Profesores activos no asignados
@@ -107,13 +142,19 @@ namespace Campus_Virtul_GRLL.Controllers
         [HttpGet]
         public async Task<IActionResult> DetalleProfesor(Guid id)
         {
-            var cursos = await _repo.GetCursosPorProfesorAsync(User.GetUserIdGuid()!.Value);
+            var userGuid = User.GetUserIdGuid();
+            if (!userGuid.HasValue)
+            {
+                _logger.LogWarning("Usuario sin GUID intentó acceder a DetalleProfesor");
+                return Forbid();
+            }
+            var cursos = await _repo.GetCursosPorProfesorAsync(userGuid.Value);
             var curso = cursos.FirstOrDefault(c => c.id == id);
             if (curso.id == Guid.Empty) return NotFound();
             ViewBag.Curso = curso;
             // Puede editar: solo si el profesor está asignado
             var asignados = await _repo.GetCursoProfesoresAsync(id);
-            bool esProfesorAsignado = User.GetUserIdGuid().HasValue && asignados.Any(a => a.profesorId == User.GetUserIdGuid().Value);
+            bool esProfesorAsignado = userGuid.HasValue && asignados.Any(a => a.profesorId == userGuid.Value);
             ViewBag.PuedeEditar = esProfesorAsignado;
             ViewBag.ProfesoresAsignados = asignados;
             // Sesiones y subsecciones
@@ -237,6 +278,12 @@ namespace Campus_Virtul_GRLL.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Publicar(Guid idCurso)
         {
+            var tieneProfesor = await _repo.HasProfesorAsignadoAsync(idCurso);
+            if (!tieneProfesor)
+            {
+                TempData["Error"] = "Antes de publicar el curso, debe asignar al menos 1 profesor al curso";
+                return RedirectToAction(GetDetalleActionForCurrentUser(), new { id = idCurso });
+            }
             await _repo.UpdateCursoEstadoAsync(idCurso, "publicado");
             TempData["Mensaje"] = "Curso publicado";
             return RedirectToAction(GetDetalleActionForCurrentUser(), new { id = idCurso });

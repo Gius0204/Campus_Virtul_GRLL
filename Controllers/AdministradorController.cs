@@ -17,6 +17,26 @@ namespace Campus_Virtul_GRLL.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> ListadoCursos()
+        {
+            // Cargar cursos y profesores asignados por curso
+            var cursos = await _repo.GetCursosAsync();
+            ViewBag.Cursos = cursos;
+
+            var dict = new Dictionary<Guid, List<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>();
+            foreach (var c in cursos)
+            {
+                var asignadosExt = await _repo.GetCursoProfesoresAsync(c.id);
+                dict[c.id] = asignadosExt.Select(p => (p.profesorId, p.nombres, p.apellidos, p.telefono, p.correo, p.areaNombre)).ToList();
+            }
+            ViewBag.ProfesoresAsignadosPorCurso = new Func<Guid, IEnumerable<(Guid profesorId, string nombres, string? apellidos, string? telefono, string correo, string? area)>>(
+                cid => dict.ContainsKey(cid) ? dict[cid] : Enumerable.Empty<(Guid, string, string?, string?, string, string?)>()
+            );
+
+            return View();
+        }
+
+        [HttpGet]
         public async Task<IActionResult> PanelAdministrador(string? vista)
         {
             // Datos del usuario autenticado
@@ -44,6 +64,7 @@ namespace Campus_Virtul_GRLL.Controllers
             ViewBag.TotalCursos = counts.cursos;
             ViewBag.TotalProfesores = counts.profesores;
             ViewBag.TotalPracticantes = counts.practicantes;
+            ViewBag.TotalColaboradores = counts.colaboradores;
 
             ViewBag.Vista = string.IsNullOrWhiteSpace(vista) ? "cursos" : vista.ToLower();
             if (ViewBag.Vista == "cursos")
@@ -86,10 +107,47 @@ namespace Campus_Virtul_GRLL.Controllers
             return View();
         }
 
+        [HttpGet]
+        public async Task<IActionResult> ParticipanteCounts([FromQuery] Guid[] ids)
+        {
+            if (ids == null || ids.Length == 0)
+                return Json(new { ok = false, error = "Sin cursos seleccionados" });
+            try
+            {
+                var maxIds = ids.Take(5).ToArray();
+                var data = new List<object>();
+                foreach (var id in maxIds)
+                {
+                    var counts = await _repo.GetParticipanteCountsAsync(id);
+                    // Obtener título del curso
+                    string titulo = string.Empty;
+                    try
+                    {
+                        var cursos = await _repo.GetCursosAsync();
+                        titulo = cursos.FirstOrDefault(c => c.id == id).titulo ?? id.ToString();
+                    }
+                    catch { titulo = id.ToString(); }
+                    data.Add(new { cursoId = id, titulo, profesores = counts.profesores, practicantes = counts.practicantes, colaboradores = counts.colaboradores });
+                }
+                return Json(new { ok = true, data });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { ok = false, error = ex.Message });
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PublicarCurso(Guid id)
         {
+            // No permitir publicar si no hay al menos 1 profesor asignado
+            var tieneProfesor = await _repo.HasProfesorAsignadoAsync(id);
+            if (!tieneProfesor)
+            {
+                TempData["Error"] = "Antes de publicar el curso, debe asignar al menos 1 profesor al curso";
+                return RedirectToAction("PanelAdministrador");
+            }
             await _repo.UpdateCursoEstadoAsync(id, "publicado");
             TempData["Mensaje"] = "Curso publicado";
             return RedirectToAction("PanelAdministrador");
