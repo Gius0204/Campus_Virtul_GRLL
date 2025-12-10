@@ -20,10 +20,20 @@ namespace Campus_Virtul_GRLL.Controllers
         // Profesor: tomar asistencia
         [Authorize(Roles="Profesor")]
         [HttpGet]
-        public async Task<IActionResult> Tomar(Guid idCurso, DateOnly? fecha)
+        public async Task<IActionResult> Tomar(Guid idCurso, DateOnly? fecha, Guid? asistenciaId)
         {
             var cursoId = idCurso;
-            var f = fecha ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            // Si viene asistenciaId, obtener su fecha exacta
+            DateOnly f;
+            if (asistenciaId.HasValue)
+            {
+                var asis = await _repo.GetAsistenciaPorIdAsync(asistenciaId.Value);
+                f = asis?.fecha ?? (fecha ?? DateOnly.FromDateTime(DateTime.UtcNow.Date));
+            }
+            else
+            {
+                f = fecha ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            }
             var participantesAll = await _repo.GetParticipantesCursoAsync(cursoId);
             var participantes = participantesAll.Where(p =>
                 string.Equals(p.rol, "Practicante", StringComparison.OrdinalIgnoreCase) ||
@@ -49,6 +59,7 @@ namespace Campus_Virtul_GRLL.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Registrar(Guid idCurso, DateOnly fecha, TimeOnly? horaInicio, TimeOnly? horaFin, List<Guid> usuarios, List<string> estados, List<string?> justificaciones)
         {
+            Guid? asistenciaId = null;
             try
             {
                 var profesorId = User.GetUserIdGuid()!.Value;
@@ -64,13 +75,13 @@ namespace Campus_Virtul_GRLL.Controllers
                         horaFin ??= TimeOnly.FromTimeSpan(h.fin);
                     }
                 }
-                var asistenciaId = await _repo.UpsertAsistenciaAsync(idCurso, profesorId, fecha, horaInicio, horaFin);
+                asistenciaId = await _repo.UpsertAsistenciaAsync(idCurso, profesorId, fecha, horaInicio, horaFin);
                 for (int i = 0; i < usuarios.Count; i++)
                 {
                     var uid = usuarios[i];
                     var est = i < estados.Count ? estados[i] : "ausente";
                     var jus = (i < justificaciones.Count ? justificaciones[i] : null);
-                    await _repo.SetAsistenciaDetalleAsync(asistenciaId, uid, est, jus);
+                    await _repo.SetAsistenciaDetalleAsync(asistenciaId.Value, uid, est, jus);
                 }
                 TempData["Mensaje"] = "Asistencia registrada";
             }
@@ -79,7 +90,7 @@ namespace Campus_Virtul_GRLL.Controllers
                 _logger.LogError(ex, "Error registrando asistencia");
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToAction("Tomar", new { idCurso, fecha });
+            return RedirectToAction("Tomar", new { idCurso, asistenciaId });
         }
 
         private static string DiaTextoDeFecha(DateOnly fecha)
@@ -118,6 +129,16 @@ namespace Campus_Virtul_GRLL.Controllers
             {
                 if (dias == null || inicio == null || fin == null || dias.Length != inicio.Length || dias.Length != fin.Length)
                     throw new ArgumentException("Entradas de horario inválidas");
+                // Validar: no permitir quitar días que ya tienen asistencias
+                var diasNuevos = dias.Select(d => d?.Trim().ToLowerInvariant()).Where(d => !string.IsNullOrWhiteSpace(d)).Distinct().ToHashSet();
+                var diasConAsistencias = await _repo.GetDiasConAsistenciasAsync(idCurso);
+                var eliminadosProhibidos = diasConAsistencias.Where(d => !diasNuevos.Contains(d)).ToList();
+                if (eliminadosProhibidos.Any())
+                {
+                    TempData["Error"] = "No se puede quitar estos días porque ya tienen asistencias: " + string.Join(", ", eliminadosProhibidos);
+                    return RedirectToAction("DetalleProfesor", "Cursos", new { id = idCurso });
+                }
+
                 await _repo.ReplaceHorarioCursoAsync(idCurso, dias, inicio, fin);
                 TempData["Mensaje"] = "Horario actualizado";
             }
@@ -141,12 +162,17 @@ namespace Campus_Virtul_GRLL.Controllers
                 await _repo.CrearAsistenciaAsync(idCurso, fecha, profesorId);
                 TempData["Mensaje"] = "Asistencia creada";
             }
+            catch (Npgsql.PostgresException pgx) when (pgx.SqlState == "P0001")
+            {
+                _logger.LogWarning(pgx, "Intento de crear asistencia en día no permitido");
+                TempData["Error"] = "No se pudo crear la asistencia: la fecha escogida no coincide con los días del horario del curso.";
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creando asistencia");
-                TempData["Error"] = ex.Message;
+                TempData["Error"] = "Ocurrió un error creando la asistencia.";
             }
-            return RedirectToAction("DetalleProfesor", "Cursos", new { id = idCurso });
+            return RedirectToAction("DetalleProfesor", "Cursos", new { id = idCurso, tab = "asistencias" });
         }
 
         // Practicante/Colaborador: ver sus asistencias por curso

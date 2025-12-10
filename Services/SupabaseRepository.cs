@@ -1312,6 +1312,23 @@ namespace Campus_Virtul_GRLL.Services
             return list;
         }
 
+        // Obtener una asistencia por id
+        public async Task<(DateOnly fecha, string dia)?> GetAsistenciaPorIdAsync(Guid asistenciaId)
+        {
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select fecha, dia_semana from public.asistencias where id=@id limit 1", conn);
+            cmd.Parameters.AddWithValue("id", asistenciaId);
+            using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                var f = DateOnly.FromDateTime(r.GetDateTime(0));
+                var dia = r.IsDBNull(1) ? "" : r.GetString(1);
+                return (f, dia);
+            }
+            return null;
+        }
+
         public async Task<Guid> CrearAsistenciaAsync(Guid cursoId, DateTime fecha, Guid profesorId)
         {
             using var conn = CreateConnection();
@@ -1334,6 +1351,23 @@ namespace Campus_Virtul_GRLL.Services
                 return (Guid)existing!;
             }
             return (Guid)idObj!;
+        }
+
+        // Lista de días (texto) que ya tienen asistencias registradas para el curso
+        public async Task<HashSet<string>> GetDiasConAsistenciasAsync(Guid cursoId)
+        {
+            var set = new HashSet<string>();
+            using var conn = CreateConnection();
+            await conn.OpenAsync();
+            using var cmd = new NpgsqlCommand(@"select distinct lower(dia_semana) from public.asistencias where curso_id=@c", conn);
+            cmd.Parameters.AddWithValue("c", cursoId);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var dia = r.IsDBNull(0) ? null : r.GetString(0);
+                if (!string.IsNullOrWhiteSpace(dia)) set.Add(dia.Trim().ToLowerInvariant());
+            }
+            return set;
         }
     }
 }
