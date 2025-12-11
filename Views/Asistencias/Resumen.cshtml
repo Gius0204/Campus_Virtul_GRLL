@@ -43,6 +43,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+@* Quitar plugin externo para evitar incompatibilidades *@
 <script>
 const labels = ['Presente','Tardanza','Ausente','Justificado'];
 const bg = ['#2ecc71','#f1c40f','#e74c3c','#3498db'];
@@ -70,7 +71,54 @@ const chartPie = new Chart(document.getElementById('chartPie'), {
     options: {
         cutout: '60%',
         plugins: { legend: { display: false } }
-    }
+    },
+    plugins: [{
+        // Center total text plugin
+        id: 'centerText',
+        afterDraw(chart) {
+            const { ctx, chartArea } = chart;
+            const x = (chartArea.left + chartArea.right) / 2;
+            const y = (chartArea.top + chartArea.bottom) / 2;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 16px system-ui, -apple-system, Segoe UI, Roboto';
+            ctx.fillText('Total', x, y - 12);
+            ctx.font = 'bold 22px system-ui, -apple-system, Segoe UI, Roboto';
+            ctx.fillText(total.toString(), x, y + 10);
+            ctx.restore();
+        }
+    },{
+        // Segment percentage labels without external plugin
+        id: 'segmentLabels',
+        afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            const meta = chart.getDatasetMeta(0);
+            const dataset = chart.data.datasets[0];
+            if (!meta || !dataset) return;
+            ctx.save();
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 12px system-ui, -apple-system, Segoe UI, Roboto';
+            meta.data.forEach((arc, i) => {
+                const value = dataset.data[i];
+                if (!value || total === 0) return;
+                const pct = ((value / total) * 100).toFixed(1) + '%';
+                // Compute the text position roughly at 75% of radius on the bisector
+                const { x, y } = arc.getProps(['x','y'], true);
+                const radius = arc.outerRadius - (arc.outerRadius - arc.innerRadius) / 2;
+                const startAngle = arc.startAngle;
+                const endAngle = arc.endAngle;
+                const angle = (startAngle + endAngle) / 2;
+                const tx = x + Math.cos(angle) * radius * 0.85;
+                const ty = y + Math.sin(angle) * radius * 0.85;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(pct, tx, ty);
+            });
+            ctx.restore();
+        }
+    }]
 });
 
 // Build legend with counts and percentages

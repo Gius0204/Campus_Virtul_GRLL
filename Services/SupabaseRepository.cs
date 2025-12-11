@@ -448,7 +448,7 @@ namespace Campus_Virtul_GRLL.Services
             {
                 profesores = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             }
-            using (var cmd = new NpgsqlCommand("select count(*) from public.usuarios u join public.roles r on r.id=u.rol_id where lower(r.nombre)='practicante' and u.activo=true", conn))
+            using (var cmd = new NpgsqlCommand("select count(distinct u.id) from public.usuarios u join public.roles r on r.id=u.rol_id where lower(r.nombre)='practicante' and u.activo=true", conn))
             {
                 practicantes = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             }
